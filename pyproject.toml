@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ledgerpilot"
+version = "0.1.0"
+description = "Autonomous month-end-close agent with a deterministic validation gate and governed ERP write-back, built on Qwen Cloud."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Jonathan" }]
+dependencies = [
+    "openai>=1.30",          # DashScope OpenAI-compatible endpoint for Qwen
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+include = ["ledgerpilot*", "eval*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

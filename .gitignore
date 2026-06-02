@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Secrets / local config
+.env
+odoo_config.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
