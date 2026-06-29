@@ -1,7 +1,8 @@
 """The generative planner: turns an unstructured close task into a candidate entry.
 
-Uses a Qwen model on Alibaba Cloud Model Studio through the OpenAI-compatible
-endpoint, with a strict JSON schema for the proposed journal entry. The planner
+Uses a Qwen3 model (qwen3-max) on Alibaba Cloud Model Studio through the
+OpenAI-compatible endpoint, with a strict JSON schema for the proposed journal
+entry. For harder cases, enable Qwen3 thinking mode (qwen3-max-thinking). The planner
 is deliberately the *only* generative step in the write path, and its output is
 treated as a proposal, never a write.
 

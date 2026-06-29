@@ -1,27 +1,37 @@
-"""Run the seeded-error corpus through the deterministic gate and report metrics.
+"""Run the close pipeline (planner -> gate) over the corpus and report metrics.
 
-This produces LedgerPilot's headline numbers:
+Unlike a gate-only check, every case here goes through a *planner* first, so the
+metrics describe the real pipeline rather than the rules in isolation:
 
   false-write rate  of the entries the gate APPROVED, how many are actually
-                    wrong. This is the number the project lives or dies on.
-                    Target: 0% on this corpus.
-  catch rate        of the seeded-error entries, how many the gate rejected
-                    (or escalated to a human). Target: 100%.
+                    wrong. The number the project lives or dies on. Reported with
+                    a 95% upper confidence bound (Rule of Three) so a 0/N result
+                    is presented honestly rather than as a bare "0%".
+  catch rate        of the seeded-error entries, how many the gate blocked or
+                    escalated. Target: 100%.
   false-reject rate of the correct entries (negative controls), how many the
                     gate wrongly blocked. Target: 0%.
 
-Run:  python -m eval.harness
+By default the offline ScriptedPlanner injects documented failure modes so the
+gate is stress-tested at scale with no API key. With --live it calls the real
+Qwen planner on the clean scenarios and measures the actual model + gate pipeline.
+
+Run:  python -m eval.harness            (offline, deterministic, 120 cases)
+      python -m eval.harness --live     (real Qwen planner on clean scenarios)
 """
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
+from datetime import date
 
 from ledgerpilot.chart_of_accounts import default_state
 from ledgerpilot.gate import Gate
 from ledgerpilot.models import GateDecision
 
 from .corpus import Case, ErrorClass, build_corpus
+from .scripted_planner import LivePlanner, ScriptedPlanner
 
 
 @dataclass
@@ -46,11 +56,27 @@ class Metrics:
     def false_reject_rate(self) -> float:
         return self.false_rejects / self.correct_count if self.correct_count else 0.0
 
+    @property
+    def rule_of_three_upper_bound(self) -> float:
+        """95% upper bound on the false-write rate when zero are observed.
 
-def evaluate(cases: list[Case]) -> tuple[Metrics, list[dict]]:
-    # Reference date keeps May closed and June open, matching the corpus.
-    from datetime import date
+        For 0 failures in n trials the 95% CI upper bound is ~3/n. Reporting it
+        turns a bare "0%" into an honest "0%, consistent with <=X% at 95%".
+        """
+        if self.false_writes == 0 and self.approved_writes > 0:
+            return 3.0 / self.approved_writes
+        # With observed failures, report the point estimate (no bound needed).
+        return self.false_write_rate
 
+
+def _handled_correctly(case: Case, decision: GateDecision) -> bool:
+    if case.is_correct:
+        return decision == GateDecision.APPROVED
+    return decision != GateDecision.APPROVED
+
+
+def evaluate(cases: list[Case], planner=None) -> tuple[Metrics, list[dict]]:
+    planner = planner or ScriptedPlanner()
     gate = Gate(state=default_state(reference=date(2026, 6, 30)))
 
     rows: list[dict] = []
@@ -59,29 +85,26 @@ def evaluate(cases: list[Case]) -> tuple[Metrics, list[dict]]:
     error_count = len(cases) - correct_count
 
     for case in cases:
-        result = gate.evaluate(case.entry)
+        entry, source = planner.produce(case)
+        result = gate.evaluate(entry, source)
         wrote = result.decision == GateDecision.APPROVED
 
-        if wrote and not case.is_correct:
-            false_writes += 1
         if wrote:
             approved_writes += 1
-        if not case.is_correct and result.decision != GateDecision.APPROVED:
+            if not case.is_correct:
+                false_writes += 1
+        if not case.is_correct and not wrote:
             caught += 1
         if case.is_correct and result.decision == GateDecision.REJECTED:
             false_rejects += 1
 
-        rows.append(
-            {
-                "case": case.name,
-                "truth": case.error_class.value,
-                "decision": result.decision.value,
-                "correct_handling": _correct_handling(case, result.decision),
-                "reason": "; ".join(
-                    c.detail for c in result.failed_checks
-                ) or "all checks passed",
-            }
-        )
+        rows.append({
+            "case": case.name,
+            "truth": case.error_class.value,
+            "decision": result.decision.value,
+            "ok": _handled_correctly(case, result.decision),
+            "reason": "; ".join(c.detail for c in result.failed_checks) or "all checks passed",
+        })
 
     metrics = Metrics(
         total=len(cases),
@@ -95,42 +118,48 @@ def evaluate(cases: list[Case]) -> tuple[Metrics, list[dict]]:
     return metrics, rows
 
 
-def _correct_handling(case: Case, decision: GateDecision) -> bool:
-    if case.is_correct:
-        return decision == GateDecision.APPROVED
-    # Any non-approval of a wrong entry is correct handling.
-    return decision != GateDecision.APPROVED
-
-
-def _print_report(metrics: Metrics, rows: list[dict]) -> None:
-    print("=" * 78)
-    print("LedgerPilot — deterministic gate evaluation")
-    print("=" * 78)
-    header = f"{'case':<34}{'truth':<20}{'decision':<14}{'ok':<4}"
-    print(header)
-    print("-" * 78)
-    for r in rows:
-        ok = "PASS" if r["correct_handling"] else "FAIL"
-        print(f"{r['case']:<34}{r['truth']:<20}{r['decision']:<14}{ok:<4}")
-    print("-" * 78)
-    print(f"Total cases:            {metrics.total}")
-    print(f"  correct (controls):   {metrics.correct_count}")
-    print(f"  seeded errors:        {metrics.error_count}")
-    print(f"Gate-approved writes:   {metrics.approved_writes}")
+def _print_report(metrics: Metrics, rows: list[dict], mode: str) -> None:
+    print("=" * 80)
+    print(f"LedgerPilot - close pipeline evaluation  [{mode}]")
+    print("=" * 80)
+    # Show any mishandled cases explicitly; summarize the rest.
+    failures = [r for r in rows if not r["ok"]]
+    print(f"cases: {metrics.total}   handled correctly: {metrics.total - len(failures)}")
+    if failures:
+        print("\nMISHANDLED CASES:")
+        for r in failures:
+            print(f"  {r['case']:<28}{r['truth']:<18}{r['decision']:<12}{r['reason']}")
+    print("-" * 80)
+    print(f"correct controls:       {metrics.correct_count}")
+    print(f"seeded errors:          {metrics.error_count}")
+    print(f"gate-approved writes:   {metrics.approved_writes}")
     print()
+    ub = metrics.rule_of_three_upper_bound * 100
     print(f"  FALSE-WRITE RATE:     {metrics.false_write_rate * 100:.2f}%  "
-          f"({metrics.false_writes} wrong entries approved)")
+          f"({metrics.false_writes} wrong of {metrics.approved_writes} approved; "
+          f"<= {ub:.2f}% at 95% CI)")
     print(f"  catch rate:           {metrics.catch_rate * 100:.2f}%  "
           f"({metrics.caught}/{metrics.error_count} errors blocked)")
     print(f"  false-reject rate:    {metrics.false_reject_rate * 100:.2f}%  "
           f"({metrics.false_rejects}/{metrics.correct_count} controls wrongly blocked)")
-    print("=" * 78)
+    print("=" * 80)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    argv = argv if argv is not None else sys.argv[1:]
+    live = "--live" in argv
     cases = build_corpus()
-    metrics, rows = evaluate(cases)
-    _print_report(metrics, rows)
+    if live:
+        # The live planner only handles clean scenarios (we cannot force a real
+        # model to make specific errors); measure the true model + gate pipeline.
+        cases = [c for c in cases if c.error_class == ErrorClass.NONE]
+        planner = LivePlanner()
+        mode = "live: real Qwen planner, clean scenarios"
+    else:
+        planner = ScriptedPlanner()
+        mode = "offline: scripted error-injection, all classes"
+    metrics, rows = evaluate(cases, planner)
+    _print_report(metrics, rows, mode)
 
 
 if __name__ == "__main__":

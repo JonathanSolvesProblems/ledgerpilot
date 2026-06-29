@@ -152,6 +152,34 @@ class GateResult(BaseModel):
         return self.decision == GateDecision.APPROVED
 
 
+class SourceDocument(BaseModel):
+    """Ground-truth facts extracted from the source document (invoice, statement).
+
+    This is the independent evidence the reconciliation check validates a
+    proposed entry against. It lets the deterministic gate catch *semantic*
+    errors a balance check cannot: an entry that balances perfectly but posts
+    the wrong amount, or hits a valid-but-incorrect account.
+
+    ``gross_amount`` is the authoritative total from the document. The allowed
+    account sets encode the posting policy for this document type (e.g. a
+    software invoice may debit an expense or VAT account and must credit AP or
+    cash). An empty allowed set means "do not constrain that side".
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    document_id: str
+    doc_type: str = "invoice"
+    gross_amount: Decimal = Field(default=Decimal("0.00"))
+    allowed_debit_accounts: list[str] = Field(default_factory=list)
+    allowed_credit_accounts: list[str] = Field(default_factory=list)
+
+    @field_validator("gross_amount", mode="before")
+    @classmethod
+    def _to_money(cls, v):
+        return money(v)
+
+
 class Proposal(BaseModel):
     """A planner output: a candidate entry plus the model's reasoning."""
 

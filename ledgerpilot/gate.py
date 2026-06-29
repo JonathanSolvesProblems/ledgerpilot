@@ -14,6 +14,14 @@ Each check maps to a real accounting / internal-control concern:
   period_lock        entry date must fall in an OPEN period
   segregation        preparer != approver, approver must be authorized
   approval_threshold large entries require explicit human approval (HITL)
+  reconciliation     (when a source document is supplied) the entry's amount and
+                     accounts must match the independent document evidence
+
+The reconciliation check is what lets the gate catch *semantic* errors that a
+balance check cannot: a journal entry can balance to the cent yet post the wrong
+amount or hit a valid-but-incorrect account. Those are exactly the mistakes a
+generative planner makes, so reconciling against the source document is how the
+deterministic layer guards against a confident, well-formed, wrong proposal.
 """
 
 from __future__ import annotations
@@ -27,6 +35,7 @@ from .models import (
     GateResult,
     JournalEntry,
     Severity,
+    SourceDocument,
 )
 
 
@@ -197,9 +206,72 @@ class Gate:
             ),
         )
 
+    def _check_reconciliation(
+        self, entry: JournalEntry, source: SourceDocument | None
+    ) -> CheckResult:
+        if source is None:
+            return CheckResult(
+                check="reconciliation",
+                passed=True,
+                severity=Severity.INFO,
+                detail="No source document supplied; reconciliation skipped.",
+            )
+        problems: list[str] = []
+
+        # Amount must match the authoritative document total.
+        if entry.amount != source.gross_amount:
+            problems.append(
+                f"amount {entry.amount} does not match document total "
+                f"{source.gross_amount}"
+            )
+
+        # Accounts must fall within the posting policy for this document.
+        if source.allowed_debit_accounts:
+            bad_debits = sorted(
+                {
+                    ln.account_code
+                    for ln in entry.lines
+                    if ln.debit > 0 and ln.account_code not in source.allowed_debit_accounts
+                }
+            )
+            if bad_debits:
+                problems.append(
+                    f"debit accounts {bad_debits} not permitted for "
+                    f"{source.doc_type} (allowed {source.allowed_debit_accounts})"
+                )
+        if source.allowed_credit_accounts:
+            bad_credits = sorted(
+                {
+                    ln.account_code
+                    for ln in entry.lines
+                    if ln.credit > 0 and ln.account_code not in source.allowed_credit_accounts
+                }
+            )
+            if bad_credits:
+                problems.append(
+                    f"credit accounts {bad_credits} not permitted for "
+                    f"{source.doc_type} (allowed {source.allowed_credit_accounts})"
+                )
+
+        passed = not problems
+        return CheckResult(
+            check="reconciliation",
+            passed=passed,
+            severity=Severity.ERROR,
+            detail=(
+                f"Entry reconciles to document {source.document_id}."
+                if passed
+                else f"Does not reconcile to {source.document_id}: "
+                + "; ".join(problems)
+                + "."
+            ),
+        )
+
     # --- aggregate ---------------------------------------------------------
 
-    def evaluate(self, entry: JournalEntry) -> GateResult:
+    def evaluate(
+        self, entry: JournalEntry, source: SourceDocument | None = None
+    ) -> GateResult:
         checks = [
             self._check_balance(entry),
             self._check_account_validity(entry),
@@ -208,6 +280,7 @@ class Gate:
             self._check_period_lock(entry),
             self._check_segregation(entry),
             self._check_approval_threshold(entry),
+            self._check_reconciliation(entry, source),
         ]
 
         hard_failure = any(

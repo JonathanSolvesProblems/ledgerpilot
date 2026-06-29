@@ -34,7 +34,7 @@ def load_config() -> Config:
             "DASHSCOPE_BASE_URL",
             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         ),
-        planner_model=os.environ.get("LEDGERPILOT_PLANNER_MODEL", "qwen-max"),
+        planner_model=os.environ.get("LEDGERPILOT_PLANNER_MODEL", "qwen3-max"),
         vision_model=os.environ.get("LEDGERPILOT_VISION_MODEL", "qwen3-vl-plus"),
         signing_key=os.environ.get("LEDGERPILOT_SIGNING_KEY", "dev-insecure-key"),
         approval_threshold=Decimal(

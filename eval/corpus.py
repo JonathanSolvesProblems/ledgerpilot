@@ -1,22 +1,33 @@
-"""A domain-credible seeded-error corpus.
+"""A domain-credible, parametrized seeded-error corpus for the close pipeline.
 
-Each case is a journal entry plus a ground-truth label: is it actually correct,
-and if not, which error class does it carry. The error classes are real
-accounting / internal-control failures, not random noise. The harness uses this
-to measure whether the deterministic gate catches what it should and, crucially,
-whether anything wrong slips through as "approved" (the false-write rate).
+A *scenario* is a real source document (an invoice, a statement) plus the
+single correct journal entry that should be posted for it. The corpus expands a
+handful of base scenarios into many cases by (a) varying amounts and (b) applying
+each error class, so the false-write rate is measured over a meaningful number of
+entries rather than a handful.
 
-Building this corpus is the part that requires accounting knowledge, and is the
-project's moat: the gate is only as defensible as the errors it is tested against.
+Crucially, the corpus now includes *semantic* error classes the old gate could
+not catch:
+
+  WRONG_AMOUNT   a balanced entry whose total does not match the document
+  WRONG_ACCOUNT  a balanced entry posted to a valid but incorrect account
+
+These are exactly the mistakes a generative planner makes. They are caught only
+because the gate reconciles each entry against the independent source document.
+
+Building this corpus is the part that requires accounting knowledge, and it is
+the project's moat: the gate is only as defensible as the errors it is tested
+against.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
+from decimal import Decimal
 from enum import Enum
 
-from ledgerpilot.models import JournalEntry, JournalLine
+CENTS = Decimal("0.01")
 
 
 class ErrorClass(str, Enum):
@@ -29,12 +40,103 @@ class ErrorClass(str, Enum):
     NEGATIVE_AMOUNT = "negative_amount"
     SOD_VIOLATION = "sod_violation"
     THRESHOLD_EVASION = "threshold_evasion"  # large entry, no human approval
+    WRONG_AMOUNT = "wrong_amount"  # balanced but != document total (semantic)
+    WRONG_ACCOUNT = "wrong_account"  # balanced, valid, but wrong account (semantic)
+
+
+# Error classes other than the clean control.
+ERROR_CLASSES = [ec for ec in ErrorClass if ec != ErrorClass.NONE]
+
+OPEN = date(2026, 6, 15)
+CLOSED = date(2026, 5, 15)
+
+
+@dataclass(frozen=True)
+class Scenario:
+    """A source document plus its single correct posting."""
+
+    name: str
+    doc_type: str
+    document_id: str
+    gross: Decimal
+    debit_account: str  # correct debit account
+    credit_account: str  # correct credit account
+    allowed_debit: tuple[str, ...]  # posting policy for this document type
+    allowed_credit: tuple[str, ...]
+    memo: str
+    prepared_by: str = "agent"
+    approved_by: str = "controller"
+    entry_date: date = OPEN
+
+    def with_gross(self, gross: Decimal) -> "Scenario":
+        return replace(self, gross=gross.quantize(CENTS))
+
+    def task_text(self) -> str:
+        """Natural-language description a live planner converts into an entry."""
+        return (
+            f"Record this {self.doc_type} ({self.document_id}): {self.memo}. "
+            f"Total amount {self.gross}. Post to the appropriate accounts and "
+            f"date it in the open period."
+        )
+
+
+def base_scenarios() -> list[Scenario]:
+    return [
+        Scenario(
+            name="rent", doc_type="invoice", document_id="INV-RENT",
+            gross=Decimal("4500.00"), debit_account="6100", credit_account="1000",
+            allowed_debit=("6100",), allowed_credit=("1000", "2000"),
+            memo="Monthly office rent",
+        ),
+        Scenario(
+            name="saas", doc_type="invoice", document_id="INV-SAAS",
+            gross=Decimal("1080.00"), debit_account="6300", credit_account="2000",
+            allowed_debit=("6300", "2200"), allowed_credit=("2000", "1000"),
+            memo="Software subscription incl. VAT",
+        ),
+        Scenario(
+            name="utilities", doc_type="invoice", document_id="INV-UTIL",
+            gross=Decimal("1230.00"), debit_account="6200", credit_account="1000",
+            allowed_debit=("6200",), allowed_credit=("1000", "2000"),
+            memo="Electricity and water",
+        ),
+        Scenario(
+            name="payroll", doc_type="statement", document_id="STMT-PAY",
+            gross=Decimal("8200.00"), debit_account="6000", credit_account="1000",
+            allowed_debit=("6000",), allowed_credit=("1000", "2100"),
+            memo="Staff salaries",
+        ),
+        Scenario(
+            name="revenue", doc_type="invoice", document_id="INV-OUT",
+            gross=Decimal("6200.00"), debit_account="1100", credit_account="4100",
+            allowed_debit=("1100", "1000"), allowed_credit=("4100", "4000"),
+            memo="Service revenue invoiced", approved_by="cfo",
+        ),
+        Scenario(
+            name="bankfee", doc_type="statement", document_id="STMT-FEE",
+            gross=Decimal("75.00"), debit_account="6900", credit_account="1000",
+            allowed_debit=("6900",), allowed_credit=("1000",),
+            memo="Monthly bank charges",
+        ),
+        Scenario(
+            name="cogs", doc_type="invoice", document_id="INV-COGS",
+            gross=Decimal("3400.00"), debit_account="5000", credit_account="2000",
+            allowed_debit=("5000",), allowed_credit=("2000", "1000"),
+            memo="Cost of goods purchased",
+        ),
+        Scenario(
+            name="prepaid", doc_type="invoice", document_id="INV-PREPAY",
+            gross=Decimal("2400.00"), debit_account="1200", credit_account="1000",
+            allowed_debit=("1200",), allowed_credit=("1000", "2000"),
+            memo="Annual insurance paid in advance",
+        ),
+    ]
 
 
 @dataclass
 class Case:
     name: str
-    entry: JournalEntry
+    scenario: Scenario
     error_class: ErrorClass
 
     @property
@@ -42,202 +144,32 @@ class Case:
         return self.error_class == ErrorClass.NONE
 
 
-def _line(acct: str, debit: str = "0.00", credit: str = "0.00", desc: str = "") -> JournalLine:
-    return JournalLine(account_code=acct, description=desc, debit=debit, credit=credit)
-
-
-OPEN = date(2026, 6, 15)
-CLOSED = date(2026, 5, 15)
+# Multipliers used to mint several correct entries per scenario, so the
+# false-write-rate denominator (approved entries) is statistically meaningful.
+GROSS_VARIANTS = [
+    Decimal("1.0"),
+    Decimal("0.5"),
+    Decimal("2.0"),
+    Decimal("3.5"),
+    Decimal("0.25"),
+]
 
 
 def build_corpus() -> list[Case]:
-    """A balanced set of correct and seeded-error entries.
+    """Expand base scenarios into a parametrized corpus.
 
-    Includes negative controls (correct entries that must pass) so we can prove
-    the gate stays silent when it should.
+    Per scenario: one correct case for each amount variant (these are the
+    approved-write denominator), plus one case for each error class at the base
+    amount. With 8 scenarios that is 8*5 = 40 correct controls and 8*10 = 80
+    seeded errors = 120 cases.
     """
     cases: list[Case] = []
-
-    # --- correct entries (negative controls) ------------------------------
-    cases.append(
-        Case(
-            "rent_expense_clean",
-            JournalEntry(
-                ref="JE-100",
-                entry_date=OPEN,
-                memo="Office rent for June",
-                lines=[_line("6100", debit="4500.00"), _line("1000", credit="4500.00")],
-                prepared_by="agent",
-                approved_by="controller",
-                source_doc_id="INV-RENT-06",
-            ),
-            ErrorClass.NONE,
-        )
-    )
-    cases.append(
-        Case(
-            "software_sub_clean",
-            JournalEntry(
-                ref="JE-101",
-                entry_date=OPEN,
-                memo="SaaS subscription",
-                lines=[
-                    _line("6300", debit="900.00"),
-                    _line("2200", debit="180.00", desc="VAT"),
-                    _line("2000", credit="1080.00"),
-                ],
-                prepared_by="agent",
-                approved_by="controller",
-                source_doc_id="INV-SAAS-06",
-            ),
-            ErrorClass.NONE,
-        )
-    )
-    cases.append(
-        Case(
-            "revenue_recognition_clean",
-            JournalEntry(
-                ref="JE-102",
-                entry_date=OPEN,
-                memo="Service revenue invoiced",
-                lines=[_line("1100", debit="6200.00"), _line("4100", credit="6200.00")],
-                prepared_by="agent",
-                approved_by="cfo",
-                source_doc_id="INV-OUT-22",
-            ),
-            ErrorClass.NONE,
-        )
-    )
-
-    # --- seeded errors -----------------------------------------------------
-    cases.append(
-        Case(
-            "unbalanced_off_by_cents",
-            JournalEntry(
-                ref="JE-200",
-                entry_date=OPEN,
-                memo="Utilities (transposed digit)",
-                lines=[_line("6200", debit="1230.00"), _line("1000", credit="1320.00")],
-                prepared_by="agent",
-                approved_by="controller",
-            ),
-            ErrorClass.UNBALANCED,
-        )
-    )
-    cases.append(
-        Case(
-            "unknown_account",
-            JournalEntry(
-                ref="JE-201",
-                entry_date=OPEN,
-                memo="Posting to a made-up account",
-                lines=[_line("9999", debit="500.00"), _line("1000", credit="500.00")],
-                prepared_by="agent",
-                approved_by="controller",
-            ),
-            ErrorClass.UNKNOWN_ACCOUNT,
-        )
-    )
-    cases.append(
-        Case(
-            "non_postable_summary_account",
-            JournalEntry(
-                ref="JE-202",
-                entry_date=OPEN,
-                memo="Posting to a summary header",
-                lines=[_line("1900", debit="500.00"), _line("1000", credit="500.00")],
-                prepared_by="agent",
-                approved_by="controller",
-            ),
-            ErrorClass.NON_POSTABLE_ACCOUNT,
-        )
-    )
-    cases.append(
-        Case(
-            "closed_period_backdate",
-            JournalEntry(
-                ref="JE-203",
-                entry_date=CLOSED,
-                memo="Backdated into a closed month",
-                lines=[_line("6100", debit="4500.00"), _line("1000", credit="4500.00")],
-                prepared_by="agent",
-                approved_by="controller",
-            ),
-            ErrorClass.CLOSED_PERIOD,
-        )
-    )
-    cases.append(
-        Case(
-            "self_contra_line",
-            JournalEntry(
-                ref="JE-204",
-                entry_date=OPEN,
-                memo="One line both debits and credits",
-                lines=[
-                    _line("6000", debit="3000.00", credit="3000.00"),
-                    _line("1000", credit="0.00", debit="0.00"),
-                ],
-                prepared_by="agent",
-                approved_by="controller",
-            ),
-            ErrorClass.SELF_CONTRA,
-        )
-    )
-    cases.append(
-        Case(
-            "negative_amount",
-            JournalEntry(
-                ref="JE-205",
-                entry_date=OPEN,
-                memo="Negative debit to fake a credit",
-                lines=[_line("6900", debit="-50.00"), _line("1000", credit="-50.00")],
-                prepared_by="agent",
-                approved_by="controller",
-            ),
-            ErrorClass.NEGATIVE_AMOUNT,
-        )
-    )
-    cases.append(
-        Case(
-            "sod_self_approval",
-            JournalEntry(
-                ref="JE-206",
-                entry_date=OPEN,
-                memo="Preparer approves their own entry",
-                lines=[_line("6000", debit="2000.00"), _line("1000", credit="2000.00")],
-                prepared_by="alice",
-                approved_by="alice",
-            ),
-            ErrorClass.SOD_VIOLATION,
-        )
-    )
-    cases.append(
-        Case(
-            "unauthorized_approver",
-            JournalEntry(
-                ref="JE-207",
-                entry_date=OPEN,
-                memo="Approved by someone not authorized",
-                lines=[_line("6000", debit="2000.00"), _line("1000", credit="2000.00")],
-                prepared_by="agent",
-                approved_by="intern_bob",
-            ),
-            ErrorClass.SOD_VIOLATION,
-        )
-    )
-    cases.append(
-        Case(
-            "threshold_evasion_large_no_human",
-            JournalEntry(
-                ref="JE-208",
-                entry_date=OPEN,
-                memo="Large entry posted autonomously without human sign-off",
-                lines=[_line("1500", debit="45000.00"), _line("1000", credit="45000.00")],
-                prepared_by="agent",
-                approved_by=None,
-            ),
-            ErrorClass.THRESHOLD_EVASION,
-        )
-    )
-
+    for scn in base_scenarios():
+        for i, mult in enumerate(GROSS_VARIANTS):
+            variant = scn.with_gross(scn.gross * mult)
+            cases.append(
+                Case(f"{scn.name}_clean_v{i}", variant, ErrorClass.NONE)
+            )
+        for ec in ERROR_CLASSES:
+            cases.append(Case(f"{scn.name}_{ec.value}", scn, ec))
     return cases
