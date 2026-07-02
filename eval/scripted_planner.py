@@ -153,6 +153,41 @@ class ScriptedPlanner:
                     JournalLine(account_code=scn.credit_account, credit=str(big)),
                 ],
             })
+        elif ec == ErrorClass.DIRECTION_SWAP:
+            # Balanced, valid accounts, but debit and credit are flipped: the
+            # normally-credited account is debited and vice versa. Reconciliation
+            # catches it because the posting policy separates debit vs credit sides.
+            entry = entry.model_copy(update={
+                "lines": [
+                    JournalLine(account_code=scn.credit_account, debit=str(g)),
+                    JournalLine(account_code=scn.debit_account, credit=str(g)),
+                ]
+            })
+        elif ec == ErrorClass.SPLIT_ONE_WRONG:
+            # Balanced, correct total, but the debit is split across two lines and
+            # one of them posts to a wrong (valid) account.
+            part = (g - Decimal("100.00")).quantize(Decimal("0.01"))
+            entry = entry.model_copy(update={
+                "lines": [
+                    JournalLine(account_code=scn.debit_account, debit=str(part)),
+                    JournalLine(account_code=_pick_wrong_account(scn), debit="100.00"),
+                    JournalLine(account_code=scn.credit_account, credit=str(g)),
+                ]
+            })
+        elif ec == ErrorClass.PERIOD_BOUNDARY:
+            # Dated on the last day of the closed prior month (off-by-one at the
+            # period boundary), which the period lock must still reject.
+            entry = entry.model_copy(update={"entry_date": date(2026, 5, 31)})
+        elif ec == ErrorClass.VAT_ROUNDING:
+            # Balanced, but the total is off the document by one cent (a rounding
+            # slip on a tax split). Reconciliation must catch the mismatch.
+            off = (g - Decimal("0.01")).quantize(Decimal("0.01"))
+            entry = entry.model_copy(update={
+                "lines": [
+                    JournalLine(account_code=scn.debit_account, debit=str(off)),
+                    JournalLine(account_code=scn.credit_account, credit=str(off)),
+                ]
+            })
         return entry, source
 
 

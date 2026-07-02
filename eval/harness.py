@@ -42,6 +42,8 @@ class Metrics:
     approved_writes: int
     false_writes: int  # approved but actually wrong
     caught: int  # error cases rejected or escalated
+    blocked: int  # error cases hard-rejected
+    escalated: int  # error cases sent to a human (NEEDS_HUMAN)
     false_rejects: int  # correct cases blocked
 
     @property
@@ -80,7 +82,7 @@ def evaluate(cases: list[Case], planner=None) -> tuple[Metrics, list[dict]]:
     gate = Gate(state=default_state(reference=date(2026, 6, 30)))
 
     rows: list[dict] = []
-    approved_writes = false_writes = caught = false_rejects = 0
+    approved_writes = false_writes = caught = blocked = escalated = false_rejects = 0
     correct_count = sum(1 for c in cases if c.is_correct)
     error_count = len(cases) - correct_count
 
@@ -95,6 +97,10 @@ def evaluate(cases: list[Case], planner=None) -> tuple[Metrics, list[dict]]:
                 false_writes += 1
         if not case.is_correct and not wrote:
             caught += 1
+            if result.decision == GateDecision.REJECTED:
+                blocked += 1
+            elif result.decision == GateDecision.NEEDS_HUMAN:
+                escalated += 1
         if case.is_correct and result.decision == GateDecision.REJECTED:
             false_rejects += 1
 
@@ -113,6 +119,8 @@ def evaluate(cases: list[Case], planner=None) -> tuple[Metrics, list[dict]]:
         approved_writes=approved_writes,
         false_writes=false_writes,
         caught=caught,
+        blocked=blocked,
+        escalated=escalated,
         false_rejects=false_rejects,
     )
     return metrics, rows
@@ -139,9 +147,14 @@ def _print_report(metrics: Metrics, rows: list[dict], mode: str) -> None:
           f"({metrics.false_writes} wrong of {metrics.approved_writes} approved; "
           f"<= {ub:.2f}% at 95% CI)")
     print(f"  catch rate:           {metrics.catch_rate * 100:.2f}%  "
-          f"({metrics.caught}/{metrics.error_count} errors blocked)")
+          f"({metrics.caught}/{metrics.error_count} = {metrics.blocked} blocked "
+          f"+ {metrics.escalated} escalated to human)")
     print(f"  false-reject rate:    {metrics.false_reject_rate * 100:.2f}%  "
           f"({metrics.false_rejects}/{metrics.correct_count} controls wrongly blocked)")
+    if "offline" in mode:
+        print("\n  NOTE: this is a SYNTHETIC gate stress-test (no LLM). It measures the")
+        print("  gate's decision logic against injected errors. The measured false-write")
+        print("  rate on real model output comes from:  python -m eval.harness --live")
     print("=" * 80)
 
 
@@ -157,7 +170,7 @@ def main(argv: list[str] | None = None) -> None:
         mode = "live: real Qwen planner, clean scenarios"
     else:
         planner = ScriptedPlanner()
-        mode = "offline: scripted error-injection, all classes"
+        mode = "offline synthetic gate stress-test (no LLM)"
     metrics, rows = evaluate(cases, planner)
     _print_report(metrics, rows, mode)
 

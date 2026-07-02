@@ -2,12 +2,16 @@
 
 This is the spine for the 3-minute submission video. It runs entirely against an
 in-memory fake Odoo, so it needs no cloud key and no live ERP, yet exercises the
-full governance path. Four scenes:
+full governance path. Five scenes:
 
-  1. HAPPY PATH      a clean entry is approved, signed, and written.
-  2. THE SAVE        a wrong entry (out of balance) is refused at the gate.
-  3. HUMAN-IN-LOOP   a large entry is escalated, then committed once approved.
-  4. IDEMPOTENCY     re-submitting a written entry does not double-post.
+  1. THE SEMANTIC SAVE a balanced entry with real accounts, posted to the WRONG
+                       account, is refused by reconciliation to the source
+                       document (a trial balance would never catch it).
+  2. HAPPY PATH        the same invoice, posted correctly, is approved, signed,
+                       and written.
+  3. THE BALANCE SAVE  an out-of-balance entry is refused at the gate.
+  4. HUMAN-IN-LOOP     a large entry is escalated, then committed once approved.
+  5. IDEMPOTENCY       re-submitting a written entry does not double-post.
 
 Run:  python demo.py
 """
@@ -20,7 +24,7 @@ from decimal import Decimal
 from ledgerpilot.chart_of_accounts import default_state
 from ledgerpilot.config import Config
 from ledgerpilot.gate import Gate
-from ledgerpilot.models import GateDecision, JournalEntry, JournalLine
+from ledgerpilot.models import GateDecision, JournalEntry, JournalLine, SourceDocument
 from ledgerpilot.tokens import issue_token
 from ledgerpilot.writeback import OdooWriteBack, WriteRefused, approve_and_commit
 
@@ -29,7 +33,7 @@ from ledgerpilot.writeback import OdooWriteBack, WriteRefused, approve_and_commi
 DEMO_CONFIG = Config(
     dashscope_api_key="",
     dashscope_base_url="",
-    planner_model="qwen-max",
+    planner_model="qwen3-max",
     vision_model="qwen3-vl-plus",
     signing_key="demo-signing-key-not-for-production",
     approval_threshold=Decimal("10000.00"),
@@ -37,6 +41,7 @@ DEMO_CONFIG = Config(
     odoo_db="ledgerpilot",
     odoo_username="agent",
     odoo_api_key="",
+    odoo_mcp_server_url="",
 )
 
 
@@ -61,8 +66,8 @@ def banner(title: str) -> None:
     print("=" * 72)
 
 
-def show_gate(gate: Gate, entry: JournalEntry):
-    result = gate.evaluate(entry)
+def show_gate(gate: Gate, entry: JournalEntry, source: SourceDocument | None = None):
+    result = gate.evaluate(entry, source)
     print(f"  proposed: {entry.ref}  amount={entry.amount}  date={entry.entry_date}")
     for c in result.checks:
         mark = "ok " if c.passed else "XX "
@@ -77,8 +82,42 @@ def main() -> None:
     odoo = FakeOdoo()
     writer = OdooWriteBack(gate=gate, config=DEMO_CONFIG, odoo_client=odoo)
 
-    # --- Scene 1: happy path ---------------------------------------------
-    banner("SCENE 1  Clean entry -> approved -> signed -> written")
+    # The June rent invoice: $4,500, and its posting policy says rent must hit
+    # Rent expense (6100), paid from Cash (1000) or Accounts payable (2000).
+    rent_doc = SourceDocument(
+        document_id="INV-RENT-06",
+        doc_type="invoice",
+        gross_amount="4500.00",
+        allowed_debit_accounts=["6100"],
+        allowed_credit_accounts=["1000", "2000"],
+    )
+
+    # --- Scene 1: the semantic save --------------------------------------
+    banner("SCENE 1  Balanced + valid + WRONG account -> caught by reconciliation")
+    # The planner drafted a perfectly balanced entry using real, postable
+    # accounts, but booked the rent to Bank fees (6900) instead of Rent expense
+    # (6100). Debits equal credits, every account exists: a trial balance and a
+    # balance-only gate both wave it through. Only reconciliation to the source
+    # document catches it.
+    misposted = JournalEntry(
+        ref="JE-300",
+        entry_date=date(2026, 6, 20),
+        memo="June office rent (misposted to bank fees)",
+        lines=[line("6900", debit="4500.00", desc="Rent booked to WRONG account"),
+               line("1000", credit="4500.00", desc="Cash")],
+        prepared_by="agent",
+        approved_by="controller",
+        source_doc_id="INV-RENT-06",
+    )
+    show_gate(gate, misposted, source=rent_doc)
+    try:
+        approve_and_commit(misposted, gate, writer, config=DEMO_CONFIG, source=rent_doc)
+        print("  WRITE-BACK: written  <-- THIS SHOULD NEVER PRINT")
+    except WriteRefused as exc:
+        print(f"  WRITE-BACK REFUSED: {exc}")
+
+    # --- Scene 2: happy path ---------------------------------------------
+    banner("SCENE 2  Same invoice, correct account -> approved -> signed -> written")
     clean = JournalEntry(
         ref="JE-301",
         entry_date=date(2026, 6, 20),
@@ -89,12 +128,12 @@ def main() -> None:
         approved_by="controller",
         source_doc_id="INV-RENT-06",
     )
-    show_gate(gate, clean)
-    receipt = approve_and_commit(clean, gate, writer, config=DEMO_CONFIG)
+    show_gate(gate, clean, source=rent_doc)
+    receipt = approve_and_commit(clean, gate, writer, config=DEMO_CONFIG, source=rent_doc)
     print(f"  WRITE-BACK: {receipt.status}  odoo_move_id={receipt.odoo_move_id}")
 
-    # --- Scene 2: the save ------------------------------------------------
-    banner("SCENE 2  Out-of-balance entry -> refused at the gate (the save)")
+    # --- Scene 3: the balance save ---------------------------------------
+    banner("SCENE 3  Out-of-balance entry -> refused at the gate")
     broken = JournalEntry(
         ref="JE-302",
         entry_date=date(2026, 6, 20),
@@ -110,8 +149,8 @@ def main() -> None:
     except WriteRefused as exc:
         print(f"  WRITE-BACK REFUSED: {exc}")
 
-    # --- Scene 3: human-in-the-loop --------------------------------------
-    banner("SCENE 3  Large entry -> escalated to human -> committed after approval")
+    # --- Scene 4: human-in-the-loop --------------------------------------
+    banner("SCENE 4  Large entry -> escalated to human -> committed after approval")
     big = JournalEntry(
         ref="JE-303",
         entry_date=date(2026, 6, 20),
@@ -130,9 +169,9 @@ def main() -> None:
         receipt = writer.commit(big_signed, token)
         print(f"  WRITE-BACK: {receipt.status}  odoo_move_id={receipt.odoo_move_id}")
 
-    # --- Scene 4: idempotency --------------------------------------------
-    banner("SCENE 4  Re-submitting a written entry -> no double-post")
-    receipt2 = approve_and_commit(clean, gate, writer, config=DEMO_CONFIG)
+    # --- Scene 5: idempotency --------------------------------------------
+    banner("SCENE 5  Re-submitting a written entry -> no double-post")
+    receipt2 = approve_and_commit(clean, gate, writer, config=DEMO_CONFIG, source=rent_doc)
     print(f"  re-submit JE-301 -> {receipt2.status} (odoo_move_id={receipt2.odoo_move_id})")
 
     # --- summary ----------------------------------------------------------
@@ -140,7 +179,8 @@ def main() -> None:
     print(f"  total account.move records written: {len(odoo.moves)}")
     for m in odoo.moves:
         print(f"    - {m['ref']}: {m['narration']}  (hash {m['ledgerpilot_hash'][:12]}...)")
-    print("\n  2 entries written, 1 refused, 1 escalated-then-written, 1 dedup-skipped.")
+    print("\n  2 entries written, 2 refused (1 semantic, 1 unbalanced), "
+          "1 escalated-then-written, 1 dedup-skipped.")
     print("  Nothing wrong ever reached the ledger.\n")
 
 

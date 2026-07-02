@@ -63,26 +63,31 @@ Pure, side-effect-free rules. Each check is independently testable and produces 
 
 ## Alibaba Cloud deployment topology
 
-| Component | Alibaba Cloud service |
-|---|---|
-| Qwen models (planner `qwen3-max`, vision `qwen3-vl-plus`) | **Model Studio / DashScope** (OpenAI-compatible + Responses API for MCP) |
-| Odoo ERP (system of record) | **ECS** (Elastic Compute Service) |
-| Orchestration / agent runtime | **Function Compute** |
-| Document store (statements, invoices) | **OSS** (Object Storage Service) |
-| Agent memory, approval tokens, audit log | **Tablestore** |
-| Accounting-policy retrieval (vector) | **AnalyticDB for PostgreSQL** |
-| Public entrypoint | **API Gateway** |
+Status column is explicit so nothing reads as provisioned when it is not.
 
-The Alibaba Cloud proof recording (a hackathon requirement) demonstrates the Odoo write-back hitting the ECS-hosted instance and the agent runtime executing on Function Compute. The proof code file is `ledgerpilot/writeback.py` (Alibaba Cloud calls) plus `ledgerpilot/config.py` (region/endpoint wiring).
+| Component | Alibaba Cloud service | Status |
+|---|---|---|
+| Qwen models (planner `qwen3-max`, vision `qwen3-vl-plus`) | **Model Studio / DashScope** (OpenAI-compatible + Responses API for MCP) | Coded; live on API key |
+| Odoo ERP (system of record) | **ECS** (Elastic Compute Service) | Coded (`odoo_client.py`); live on ECS provision |
+| Document store (statements, invoices) | **OSS** (Object Storage Service) | Planned |
+| Orchestration / agent runtime | **Function Compute** | Planned |
+| Agent memory, approval tokens, audit log | **Tablestore** | Planned |
+| Accounting-policy retrieval (vector) | **AnalyticDB for PostgreSQL** | Planned |
+| Public entrypoint | **API Gateway** | Planned |
+
+"Coded" means the calling code exists and is unit-tested against a fake transport; it runs live the moment credentials/host exist. "Planned" means designed into the topology but not yet wired. The designated **Proof of Alibaba Cloud Deployment** code files are `ledgerpilot/planner.py` (Qwen via Model Studio) and `ledgerpilot/odoo_client.py` (Odoo-on-ECS write + Responses-API MCP path); `ledgerpilot/config.py` wires region/endpoints.
 
 ## The measurement layer (the moat)
 
-`eval/harness.py` runs a 120-case seeded-error corpus through the planner + gate pipeline and reports:
-- **False-write rate:** fraction of gate-*approved* entries that are actually wrong (the headline number). Currently **0 of 40 approved, ≤ 7.50% at 95% CI** (Rule of Three). Reported with the confidence bound so a zero result is presented honestly.
-- **Catch rate:** fraction of seeded-error entries the gate blocks or escalates. Currently **100% (80/80)**, including the two semantic classes (wrong amount, wrong account) that a balance-only check cannot detect.
-- **False-reject rate (negative control):** clean inputs wrongly blocked. Currently **0% (0/40)**.
+`eval/harness.py` reports two clearly separated numbers:
 
-The offline path injects documented planner failure modes deterministically (no API key); `--live` measures the real Qwen planner + gate pipeline on the clean scenarios.
+**Synthetic gate stress-test** (`python -m eval.harness`, no LLM): a 204-case corpus (12 scenarios x 15 error classes) run through the gate.
+- **False-write rate:** 0 of 36 approved, **≤ 8.33% at 95% CI** (Rule of Three), reported with the bound so a zero result is honest.
+- **Catch rate:** **100% (168/168 = 156 blocked + 12 escalated to a human)**, including semantic classes (wrong amount, wrong account, direction swap, VAT rounding) that a balance-only check cannot detect.
+- **False-reject rate (negative control):** **0% (0/36)**.
+This measures the gate's *decision logic*, not a model's accuracy.
+
+**Measured LLM + gate** (`python -m eval.harness --live`, needs `DASHSCOPE_API_KEY`): the real Qwen planner drafts entries from natural-language tasks and the gate judges what the model produced. This is the real-pipeline number; the harness is wired and one command produces it once a key exists.
 
 ## Deployment status (honest scope)
 

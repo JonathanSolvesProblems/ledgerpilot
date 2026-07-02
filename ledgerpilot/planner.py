@@ -13,6 +13,13 @@ are caught downstream rather than silently posted.
 
 from __future__ import annotations
 
+# === ALIBABA CLOUD DEPLOYMENT PROOF ===
+# This file calls Alibaba Cloud Model Studio (DashScope) via the OpenAI-compatible
+# endpoint (see `Planner.propose` -> client.chat.completions.create using
+# config.dashscope_base_url). Together with ledgerpilot/odoo_client.py (Odoo on
+# ECS + Responses-API MCP), these are the designated Proof of Alibaba Cloud
+# Deployment code files for the hackathon submission.
+
 import json
 from datetime import date
 from typing import Optional

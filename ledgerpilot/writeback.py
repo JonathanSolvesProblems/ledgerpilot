@@ -21,7 +21,7 @@ from typing import Optional
 
 from .config import Config, load_config
 from .gate import Gate
-from .models import GateDecision, JournalEntry
+from .models import GateDecision, JournalEntry, SourceDocument
 from .tokens import ApprovalToken, issue_token, verify_token
 
 
@@ -57,10 +57,18 @@ class OdooWriteBack:
         # Idempotency ledger: content hashes already committed this run.
         self._written: dict[str, int] = {}
 
-    def commit(self, entry: JournalEntry, token: ApprovalToken) -> WriteReceipt:
-        # 1. Re-run the gate at write time. The token is necessary but not
-        #    sufficient; we never trust a stale approval.
-        result = self.gate.evaluate(entry)
+    def commit(
+        self,
+        entry: JournalEntry,
+        token: ApprovalToken,
+        source: Optional[SourceDocument] = None,
+    ) -> WriteReceipt:
+        # 1. Re-run the gate at write time, including reconciliation against the
+        #    source document when one is supplied. The token is necessary but not
+        #    sufficient; we never trust a stale approval, and the semantic
+        #    reconciliation check must run on the exact path that mutates the
+        #    ledger, not only at proposal time.
+        result = self.gate.evaluate(entry, source)
         if result.decision != GateDecision.APPROVED:
             raise WriteRefused(
                 f"Gate decision at write time is '{result.decision.value}', not approved."
@@ -130,17 +138,22 @@ def approve_and_commit(
     gate: Gate,
     writer: OdooWriteBack,
     config: Optional[Config] = None,
+    source: Optional[SourceDocument] = None,
 ) -> WriteReceipt:
     """End-to-end happy path: gate -> token -> governed write.
+
+    When a source document is supplied it is reconciled against the entry on the
+    exact path that writes to the ledger, so a balanced-but-wrong entry (right
+    form, wrong account or amount) is refused here, not just at proposal time.
 
     Raises WriteRefused if the gate does not fully approve the entry.
     """
     config = config or load_config()
-    result = gate.evaluate(entry)
+    result = gate.evaluate(entry, source)
     if result.decision != GateDecision.APPROVED:
         raise WriteRefused(
             f"Entry not approved ({result.decision.value}): "
             + "; ".join(c.detail for c in result.failed_checks)
         )
     token = issue_token(config.signing_key, entry, result)
-    return writer.commit(entry, token)
+    return writer.commit(entry, token, source)

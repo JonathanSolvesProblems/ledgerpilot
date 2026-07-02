@@ -42,6 +42,11 @@ class ErrorClass(str, Enum):
     THRESHOLD_EVASION = "threshold_evasion"  # large entry, no human approval
     WRONG_AMOUNT = "wrong_amount"  # balanced but != document total (semantic)
     WRONG_ACCOUNT = "wrong_account"  # balanced, valid, but wrong account (semantic)
+    # Adversarial / cross-cutting classes, not one-per-gate-check by construction:
+    DIRECTION_SWAP = "direction_swap"  # debit and credit accounts flipped
+    SPLIT_ONE_WRONG = "split_one_wrong"  # multi-line, one line to a wrong account
+    PERIOD_BOUNDARY = "period_boundary"  # dated on the last day of a closed period
+    VAT_ROUNDING = "vat_rounding"  # balanced but off the document total by rounding
 
 
 # Error classes other than the clean control.
@@ -130,6 +135,30 @@ def base_scenarios() -> list[Scenario]:
             allowed_debit=("1200",), allowed_credit=("1000", "2000"),
             memo="Annual insurance paid in advance",
         ),
+        Scenario(
+            name="equipment", doc_type="invoice", document_id="INV-EQUIP",
+            gross=Decimal("5200.00"), debit_account="1500", credit_account="2000",
+            allowed_debit=("1500",), allowed_credit=("2000", "1000"),
+            memo="Equipment purchase capitalized",
+        ),
+        Scenario(
+            name="accrual", doc_type="statement", document_id="STMT-ACCR",
+            gross=Decimal("1500.00"), debit_account="6000", credit_account="2100",
+            allowed_debit=("6000",), allowed_credit=("2100",),
+            memo="Accrued payroll at period end",
+        ),
+        Scenario(
+            name="vat_settlement", doc_type="statement", document_id="STMT-VAT",
+            gross=Decimal("640.00"), debit_account="2200", credit_account="1000",
+            allowed_debit=("2200",), allowed_credit=("1000",),
+            memo="VAT liability settled with tax authority",
+        ),
+        Scenario(
+            name="interest", doc_type="statement", document_id="STMT-INT",
+            gross=Decimal("320.00"), debit_account="1000", credit_account="4000",
+            allowed_debit=("1000", "1100"), allowed_credit=("4000", "4100"),
+            memo="Interest income received", approved_by="cfo",
+        ),
     ]
 
 
@@ -144,24 +173,25 @@ class Case:
         return self.error_class == ErrorClass.NONE
 
 
-# Multipliers used to mint several correct entries per scenario, so the
-# false-write-rate denominator (approved entries) is statistically meaningful.
-GROSS_VARIANTS = [
-    Decimal("1.0"),
-    Decimal("0.5"),
-    Decimal("2.0"),
-    Decimal("3.5"),
-    Decimal("0.25"),
-]
+# Two amount variants per scenario keep the denominator honest (each scenario is
+# a distinct situation), without inflating n by padding a single scenario with
+# many multipliers. The bulk of the denominator now comes from having 12 base
+# scenarios rather than from amount multiplication.
+GROSS_VARIANTS = [Decimal("1.0"), Decimal("0.5"), Decimal("2.0")]
 
 
 def build_corpus() -> list[Case]:
     """Expand base scenarios into a parametrized corpus.
 
-    Per scenario: one correct case for each amount variant (these are the
-    approved-write denominator), plus one case for each error class at the base
-    amount. With 8 scenarios that is 8*5 = 40 correct controls and 8*10 = 80
-    seeded errors = 120 cases.
+    Per scenario: one correct case for each amount variant (the approved-write
+    denominator), plus one case for each error class. With 12 scenarios that is
+    12*3 = 36 correct controls and 12*15 = 180 seeded errors.
+
+    Note: this is a SYNTHETIC gate stress-test, not a measurement of a live
+    model. The clean controls are correct entries reconciled against their own
+    source, so the offline false-write rate reflects the gate's decision logic,
+    not an LLM's error rate. The live measurement comes from
+    ``eval.harness --live``.
     """
     cases: list[Case] = []
     for scn in base_scenarios():
