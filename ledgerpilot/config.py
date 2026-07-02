@@ -25,6 +25,7 @@ class Config:
     odoo_db: str
     odoo_username: str
     odoo_api_key: str
+    odoo_mcp_server_url: str
 
 
 def load_config() -> Config:
@@ -44,4 +45,5 @@ def load_config() -> Config:
         odoo_db=os.environ.get("ODOO_DB", ""),
         odoo_username=os.environ.get("ODOO_USERNAME", ""),
         odoo_api_key=os.environ.get("ODOO_API_KEY", ""),
+        odoo_mcp_server_url=os.environ.get("ODOO_MCP_SERVER_URL", ""),
     )

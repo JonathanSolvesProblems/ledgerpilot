@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 780" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#334155"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#b91c1c"/>
+    </marker>
+    <style>
+      .title { font-size: 26px; font-weight: 700; fill: #0f172a; }
+      .subtitle { font-size: 14px; fill: #475569; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 10; }
+      .boxlabel { font-size: 15px; font-weight: 600; fill: #0f172a; }
+      .boxsub { font-size: 12px; fill: #64748b; }
+      .gen { fill: #eff6ff; stroke: #3b82f6; stroke-width: 1.5; }
+      .gate { fill: #fef2f2; stroke: #dc2626; stroke-width: 2.5; }
+      .gov { fill: #f0fdf4; stroke: #16a34a; stroke-width: 1.5; }
+      .layerlabel { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+      .cloud { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1.5; }
+      .cloudchip { fill: #ffffff; stroke: #fbbf24; stroke-width: 1; }
+      .chip { font-size: 12px; fill: #7c2d12; font-weight: 600; }
+      .metric { font-size: 13px; fill: #14532d; font-weight: 600; }
+      .check { font-size: 11.5px; fill: #7f1d1d; }
+    </style>
+  </defs>
+
+  <!-- Header -->
+  <text x="40" y="46" class="title">LedgerPilot</text>
+  <text x="40" y="70" class="subtitle">Autonomous month-end-close agent on Qwen Cloud  ·  Track 4: Autopilot Agent  ·  the ledger is a system of record the LLM may never write to directly</text>
+
+  <!-- Layer band labels -->
+  <text x="40" y="110" class="layerlabel" fill="#2563eb">GENERATIVE (Qwen)</text>
+  <text x="600" y="110" class="layerlabel" fill="#dc2626">DETERMINISTIC TRUST BOUNDARY</text>
+  <text x="1040" y="110" class="layerlabel" fill="#16a34a">GOVERNED WRITE-BACK</text>
+
+  <!-- Inputs -->
+  <rect x="40" y="130" width="150" height="120" class="box" rx="10"/>
+  <text x="115" y="160" text-anchor="middle" class="boxlabel">Unstructured</text>
+  <text x="115" y="180" text-anchor="middle" class="boxlabel">inputs</text>
+  <text x="115" y="205" text-anchor="middle" class="boxsub">invoices,</text>
+  <text x="115" y="222" text-anchor="middle" class="boxsub">bank statements,</text>
+  <text x="115" y="239" text-anchor="middle" class="boxsub">approval emails</text>
+
+  <!-- Ingestion -->
+  <rect x="215" y="130" width="160" height="120" class="gen" rx="10"/>
+  <text x="295" y="162" text-anchor="middle" class="boxlabel">Ingestion</text>
+  <text x="295" y="188" text-anchor="middle" class="boxsub">qwen3-vl-plus</text>
+  <text x="295" y="210" text-anchor="middle" class="boxsub">extract line items,</text>
+  <text x="295" y="227" text-anchor="middle" class="boxsub">amounts, parties</text>
+
+  <!-- Planner -->
+  <rect x="400" y="130" width="170" height="120" class="gen" rx="10"/>
+  <text x="485" y="162" text-anchor="middle" class="boxlabel">Planner</text>
+  <text x="485" y="188" text-anchor="middle" class="boxsub">qwen3-max +</text>
+  <text x="485" y="205" text-anchor="middle" class="boxsub">function calling</text>
+  <text x="485" y="227" text-anchor="middle" class="boxsub">proposes entry (never writes)</text>
+
+  <!-- GATE -->
+  <rect x="600" y="120" width="320" height="300" class="gate" rx="12"/>
+  <text x="760" y="150" text-anchor="middle" class="boxlabel" fill="#991b1b" font-size="17">DETERMINISTIC GATE</text>
+  <text x="760" y="170" text-anchor="middle" class="boxsub" fill="#b91c1c">pure rules · no LLM · reproducible</text>
+  <line x1="620" y1="182" x2="900" y2="182" stroke="#fca5a5" stroke-width="1"/>
+  <text x="622" y="205" class="check">1  Balance: debits = credits, to the cent</text>
+  <text x="622" y="227" class="check">2  Account validity: exists and is postable</text>
+  <text x="622" y="249" class="check">3  No self-contra / positive amounts</text>
+  <text x="622" y="271" class="check">4  Period lock: entry date in an open period</text>
+  <text x="622" y="293" class="check">5  Segregation of duties: preparer != approver</text>
+  <text x="622" y="315" class="check">6  Approval threshold: HITL above limit</text>
+  <text x="622" y="337" class="check" font-weight="700">7  Reconcile to source: right amount + account</text>
+  <text x="622" y="359" class="check" fill="#991b1b">    (catches balanced-but-wrong entries an LLM makes)</text>
+  <rect x="620" y="372" width="280" height="36" fill="#fee2e2" stroke="#fca5a5" rx="6"/>
+  <text x="760" y="395" text-anchor="middle" class="check" font-weight="700">APPROVED  ·  NEEDS_HUMAN  ·  REJECTED</text>
+
+  <!-- Signed token -->
+  <rect x="950" y="130" width="150" height="90" class="gov" rx="10"/>
+  <text x="1025" y="162" text-anchor="middle" class="boxlabel">Signed token</text>
+  <text x="1025" y="185" text-anchor="middle" class="boxsub">HMAC bound to</text>
+  <text x="1025" y="202" text-anchor="middle" class="boxsub">entry content hash</text>
+
+  <!-- Write-back -->
+  <rect x="950" y="245" width="150" height="120" class="gov" rx="10"/>
+  <text x="1025" y="275" text-anchor="middle" class="boxlabel">Write-back</text>
+  <text x="1025" y="298" text-anchor="middle" class="boxsub">idempotent,</text>
+  <text x="1025" y="315" text-anchor="middle" class="boxsub">rollback,</text>
+  <text x="1025" y="332" text-anchor="middle" class="boxsub">re-checks gate</text>
+  <text x="1025" y="352" text-anchor="middle" class="boxsub" font-weight="700">via Odoo MCP</text>
+
+  <!-- Odoo -->
+  <rect x="1130" y="245" width="130" height="120" class="box" rx="10"/>
+  <text x="1195" y="292" text-anchor="middle" class="boxlabel">Odoo ERP</text>
+  <text x="1195" y="314" text-anchor="middle" class="boxsub">account.move</text>
+  <text x="1195" y="331" text-anchor="middle" class="boxsub">system of record</text>
+  <text x="1195" y="352" text-anchor="middle" class="boxsub">on ECS</text>
+
+  <!-- Reject path -->
+  <rect x="600" y="450" width="320" height="60" class="box" rx="10" stroke="#b91c1c"/>
+  <text x="760" y="476" text-anchor="middle" class="boxlabel" fill="#991b1b">Rejected / escalated</text>
+  <text x="760" y="496" text-anchor="middle" class="boxsub">audit log + human review queue (Tablestore)</text>
+
+  <!-- Arrows: main flow -->
+  <line x1="190" y1="190" x2="213" y2="190" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="375" y1="190" x2="398" y2="190" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="570" y1="190" x2="598" y2="190" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="920" y1="175" x2="948" y2="175" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1025" y1="220" x2="1025" y2="243" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1100" y1="305" x2="1128" y2="305" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- reject arrow -->
+  <line x1="760" y1="420" x2="760" y2="448" stroke="#b91c1c" stroke-width="2" marker-end="url(#arrowRed)"/>
+
+  <!-- Metric callout -->
+  <rect x="40" y="290" width="530" height="130" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5" rx="10"/>
+  <text x="60" y="318" class="boxlabel" fill="#14532d">Measured result (120-case seeded-error corpus, planner -&gt; gate pipeline)</text>
+  <text x="60" y="346" class="metric">False-write rate:  0 wrong of 40 approved  ·  &lt;= 7.50% at 95% CI (Rule of Three)</text>
+  <text x="60" y="370" class="metric">Catch rate:  100%  (80 / 80 seeded errors blocked or escalated)</text>
+  <text x="60" y="394" class="metric">False-reject rate:  0%  (0 / 40 clean controls wrongly blocked)</text>
+  <text x="60" y="412" class="boxsub">reproduce: python -m eval.harness   (offline, no key)  ·  --live uses the real Qwen planner</text>
+
+  <!-- Cloud band -->
+  <rect x="40" y="560" width="1220" height="180" class="cloud" rx="12"/>
+  <text x="60" y="590" class="layerlabel" fill="#b45309">ALIBABA CLOUD  ·  backend + Qwen Cloud (Model Studio / DashScope)</text>
+
+  <g>
+    <rect x="60" y="610" width="220" height="52" class="cloudchip" rx="8"/>
+    <text x="170" y="634" text-anchor="middle" class="chip">Model Studio / DashScope</text>
+    <text x="170" y="651" text-anchor="middle" class="boxsub">Qwen3 models · function calling · MCP</text>
+
+    <rect x="300" y="610" width="150" height="52" class="cloudchip" rx="8"/>
+    <text x="375" y="634" text-anchor="middle" class="chip">ECS</text>
+    <text x="375" y="651" text-anchor="middle" class="boxsub">Odoo ERP host</text>
+
+    <rect x="470" y="610" width="180" height="52" class="cloudchip" rx="8"/>
+    <text x="560" y="634" text-anchor="middle" class="chip">Function Compute</text>
+    <text x="560" y="651" text-anchor="middle" class="boxsub">agent runtime</text>
+
+    <rect x="670" y="610" width="140" height="52" class="cloudchip" rx="8"/>
+    <text x="740" y="634" text-anchor="middle" class="chip">OSS</text>
+    <text x="740" y="651" text-anchor="middle" class="boxsub">document store</text>
+
+    <rect x="830" y="610" width="150" height="52" class="cloudchip" rx="8"/>
+    <text x="905" y="634" text-anchor="middle" class="chip">Tablestore</text>
+    <text x="905" y="651" text-anchor="middle" class="boxsub">tokens · audit log</text>
+
+    <rect x="1000" y="610" width="200" height="52" class="cloudchip" rx="8"/>
+    <text x="1100" y="634" text-anchor="middle" class="chip">AnalyticDB for PostgreSQL</text>
+    <text x="1100" y="651" text-anchor="middle" class="boxsub">policy retrieval (vector)</text>
+
+    <rect x="60" y="676" width="180" height="46" class="cloudchip" rx="8"/>
+    <text x="150" y="704" text-anchor="middle" class="chip">API Gateway</text>
+
+    <rect x="260" y="676" width="940" height="46" fill="#fffbeb" stroke="#fde68a" rx="8"/>
+    <text x="270" y="704" class="boxsub" fill="#78350f">Proof of Alibaba Cloud Deployment artifact: ledgerpilot/writeback.py + ledgerpilot/odoo_client.py (Model Studio + Odoo-on-ECS calls) · config.py wires region/endpoints</text>
+  </g>
+</svg>

@@ -186,7 +186,7 @@ def test_write_path_commits_and_is_idempotent():
     cfg = Config(
         dashscope_api_key="", dashscope_base_url="", planner_model="", vision_model="",
         signing_key=KEY, approval_threshold=Decimal("10000.00"),
-        odoo_url="", odoo_db="", odoo_username="", odoo_api_key="",
+        odoo_url="", odoo_db="", odoo_username="", odoo_api_key="", odoo_mcp_server_url="",
     )
     writer.config = cfg
 
