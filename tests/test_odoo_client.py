@@ -42,7 +42,7 @@ def test_mcp_client_requires_server_url():
         client.create_move({"ref": "X", "date": "2026-06-15", "narration": "", "line_ids": []})
 
 
-# --- exercise the clients end-to-end with fake transports (R5) -------------
+# --- exercise the clients end-to-end with fake transports ------------------
 
 SAMPLE_PAYLOAD = {
     "ref": "JE-1",

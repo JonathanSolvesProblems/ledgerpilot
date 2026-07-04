@@ -38,17 +38,17 @@ LedgerPilot is a three-layer autonomous close agent. The defining design decisio
 
 ## Layer responsibilities
 
-### 1. Ingestion (generative) — `ingest.py`
+### 1. Ingestion (generative): `ingest.py`
 - Reads scanned invoices / bank statements with **qwen3-vl-plus** (multimodal).
 - Extracts and normalizes line items, dates, counterparties, amounts.
 - Reads approval emails for who authorized what (feeds segregation-of-duties checks).
 
-### 2. Planner (generative) — `planner.py`
+### 2. Planner (generative): `planner.py`
 - Uses **qwen-max** / **qwen-plus** with **function calling** to draft candidate journal entries.
 - Reads current ERP state (open period, account list, existing entries) through the Odoo MCP read tools so proposals are grounded, not hallucinated.
 - Output is a structured `Proposal`, never a direct write.
 
-### 3. Deterministic gate (the scored core) — `gate.py`
+### 3. Deterministic gate (the scored core): `gate.py`
 Pure, side-effect-free rules. Each check is independently testable and produces an auditable reason. A proposal is approved only if **every** check passes:
 - **Balance:** total debits == total credits, to the cent.
 - **Account validity:** every account code exists in the chart of accounts and is postable.
@@ -57,7 +57,7 @@ Pure, side-effect-free rules. Each check is independently testable and produces 
 - **Approval thresholds:** entries above a configured amount require explicit human approval (human-in-the-loop checkpoint).
 - **Reconciliation to source (semantic check):** when a source document is supplied, the entry's total must equal the document total and its accounts must fall within the posting policy for that document type. This is what catches a balanced, valid-account, plausible entry that posts the *wrong* amount or to the *wrong* account, the characteristic failure mode of a generative planner.
 
-### 4. Governed write-back — `tokens.py` + `writeback.py`
+### 4. Governed write-back: `tokens.py` + `writeback.py`
 - An approved proposal is bound to an **HMAC-signed approval token** that captures a hash of the exact entry. The token cannot be reused for a different entry (tamper-evident).
 - `writeback.py` calls the Odoo MCP `validate_write` → `execute_approved_write` chain; execution is **idempotent** (keyed on the entry hash) and supports **rollback**. The MCP server is reached as an **SSE MCP server via the Model Studio Responses API** (`tools` parameter), which is the integration path the rubric's "MCP integrations" criterion rewards.
 

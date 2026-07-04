@@ -14,6 +14,9 @@ env/
 .env
 odoo_config.json
 
+# Internal planning (kept local, not published)
+docs/NEXT_STEPS.md
+
 # OS / editor
 .DS_Store
 Thumbs.db

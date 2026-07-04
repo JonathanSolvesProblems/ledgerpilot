@@ -6,7 +6,7 @@
 
 > **Uniqueness claim:** LedgerPilot is the only month-end-close agent that publishes a measured false-write rate, with a confidence interval, on a domain-seeded error corpus, for the entries it actually posts, backed by a deterministic reconciliation check that catches the balanced-but-wrong-account and wrong-amount errors a trial balance never will.
 
-Built for the **Global AI Hackathon Series with Qwen Cloud** — Track 4: **Autopilot Agent**.
+Built for the **Global AI Hackathon Series with Qwen Cloud** (Track 4: **Autopilot Agent**).
 
 ## Results
 

@@ -2,11 +2,11 @@ Both fixes are verified (demo opens on the reconciliation catch and refuses the 
 
 ---
 
-# SCRIPT 1 — Demo video voiceover (target 2:52, hard cap 3:00)
+# SCRIPT 1: Demo video voiceover (target 2:52, hard cap 3:00)
 
 Format: `TIME | ON SCREEN (exact action) | NARRATION (voiceover)`. One flagship feature (the deterministic gate) shown deeply on one real invoice. Record narration at ~135 wpm.
 
-Pre-roll setup (not recorded): open a full-screen terminal, dark theme, large font, in `C:\Users\Jon_A\OneDrive\Desktop\Projects\Time2\Qwen`. Have `demo.py` output already generated once so you know where each scene lands. Have `ARCHITECTURE.md` / `docs/architecture.svg` open in a second tab.
+Pre-roll setup (not recorded): open a full-screen terminal, dark theme, large font, in the repo root. Have `demo.py` output already generated once so you know where each scene lands. Have `ARCHITECTURE.md` / `docs/architecture.svg` open in a second tab.
 
 ---
 
@@ -63,7 +63,7 @@ NARRATION: "That is the claim: the only close agent that publishes a measured fa
 
 ---
 
-# SCRIPT 2 — Proof of Alibaba Cloud Deployment (target 0:55, separate from the demo)
+# SCRIPT 2: Proof of Alibaba Cloud Deployment (target 0:55, separate from the demo)
 
 Purpose: satisfy the hackathon's separate proof requirement by showing the backend live on Alibaba Cloud. Three beats: ECS Odoo, a Model Studio call, and the proof code file. No narration polish needed, a plain screen-capture voiceover is fine.
 
@@ -104,9 +104,7 @@ NARRATION: "And this is the code that talks to Alibaba Cloud. writeback.py is th
 
 ## Notes for recording (read before shooting)
 
-Load-bearing changes I made so Script 1 is truthful on camera (all verified, 34 tests still pass):
-- `C:\Users\Jon_A\OneDrive\Desktop\Projects\Time2\Qwen\demo.py` — added the missing `odoo_mcp_server_url` field (it was crashing on launch), added `SCENE 1` the semantic save (balanced, valid, wrong account, refused by reconciliation on the real INV-RENT-06 invoice), and renumbered the later scenes. The demo now opens on exactly the moment Script 1 opens on.
-- `C:\Users\Jon_A\OneDrive\Desktop\Projects\Time2\Qwen\ledgerpilot\writeback.py` — fixed adversarial-review finding R1: `approve_and_commit` and `OdooWriteBack.commit` now thread the `SourceDocument` into `gate.evaluate`, so reconciliation runs on the exact path that writes to the ledger. Before this fix, the balanced-but-wrong entry in SCENE 1 would have been written, contradicting the headline claim on camera.
+The demo opens on the semantic save: `SCENE 1` in `demo.py` proposes a balanced entry with real, postable accounts that posts the June rent (INV-RENT-06) to the wrong account, and the gate refuses it. Reconciliation runs on the exact path that writes to the ledger (`approve_and_commit` and `OdooWriteBack.commit` pass the source document into `gate.evaluate`), so this is the true behavior on camera, not a staged one. The full suite passes.
 
 Caveats:
 - Script 1 is fully recordable right now, offline, with no key (demo.py and the harness both run locally). The `[0:38-1:22]` and `[1:22-2:05]` segments are the exact outputs I captured above.
