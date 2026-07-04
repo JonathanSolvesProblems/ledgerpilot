@@ -1,5 +1,7 @@
 # LedgerPilot
 
+![license](https://img.shields.io/badge/license-Apache--2.0-blue) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![gate](https://img.shields.io/badge/gate-0%20false--writes%2F36-brightgreen) ![built on](https://img.shields.io/badge/built%20on-Qwen%20Cloud-ff6a00)
+
 **An autonomous month-end-close agent that proposes journal entries from messy financial inputs and writes them back to a real ERP only through a deterministic, auditable validation gate, with a measured false-write rate.**
 
 > It is like an AI accountant that posts straight to your ERP, but with a hard deterministic gate and a *measured safety number* for the entries it actually writes.
@@ -74,26 +76,34 @@ ledgerpilot/
   odoo_client.py       # XmlrpcOdooClient (ECS) + ModelStudioMcpClient (Responses API MCP)
 eval/
   corpus.py            # parametrized seeded-error corpus (12 scenarios x 15 error classes)
-  scripted_planner.py  # offline error-injection planner + live Qwen planner
-  harness.py           # runs corpus through planner+gate, reports false-write rate + CI
-tests/                 # 40 tests: gate, reconciliation, tokens, pipeline, write clients
+  scripted_planner.py  # offline error-injection planner
+  harness.py           # offline stress-test + --live measured run
+  live_tasks.py        # realistic close tasks with ground truth for the live run
+  live_eval.py         # measured false-write rate + Wilson 95% CI + model accuracy
+  stats.py             # Wilson score interval
+scripts/
+  live_close.py        # end-to-end real close (record this on model access)
+tests/                 # 46 tests: gate, reconciliation, tokens, pipeline, clients, live eval
 docs/
   architecture.svg     # system + Alibaba Cloud topology diagram
-  DEVPOST.md BLOG.md DEMO_SCRIPT.md NEXT_STEPS.md
+  DEVPOST.md BLOG.md DEMO_SCRIPT.md
 ```
 
 ## Quick start
 
 ```bash
 pip install -e .
-cp .env.example .env          # fill in DASHSCOPE_API_KEY and LEDGERPILOT_SIGNING_KEY
-python -m eval.harness        # offline: 120-case corpus, false-write rate + CI
-python -m eval.harness --live # online: real Qwen planner on clean scenarios
-python demo.py                # end-to-end propose -> gate -> governed write
-pytest                        # 31 tests: gate, reconciliation, tokens, pipeline
+cp .env.example .env          # add DASHSCOPE_API_KEY (a signing key is generated for you)
+python -m eval.harness        # offline: 204-case synthetic stress-test, no key needed
+python demo.py                # end-to-end propose -> gate -> governed write, no key needed
+pytest                        # 46 tests
+
+# with a Model Studio key in .env (auto-loaded):
+python -m eval.harness --live # MEASURED false-write rate on real Qwen output + Wilson CI
+python scripts/live_close.py  # watch the real agent propose -> gate -> governed write
 ```
 
-The deterministic gate and eval harness run **without a live ERP and without an API key** (the offline path uses an error-injection planner). The `--live` path and write-back target real Qwen models and an Odoo instance on Alibaba Cloud ECS (see ARCHITECTURE.md).
+The deterministic gate, demo, and offline harness run **without a live ERP and without an API key** (the offline path uses an error-injection planner). The `--live` path and write-back target real Qwen models and an Odoo instance on Alibaba Cloud ECS (see ARCHITECTURE.md).
 
 ## Impact and compliance
 
@@ -123,13 +133,34 @@ LedgerPilot's gate maps each check to a named control:
 
 Anyone can prompt "build me an accounting agent." The defensible part is the measured, reproducible control layer, not the LLM.
 
-## Status (honest scope)
+## Reproduce the measured number
 
-- **Working today, no credentials:** the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the 204-case offline synthetic stress-test, the demo, and 40 tests.
-- **Needs a key / cloud:** the `--live` Qwen path (set `DASHSCOPE_API_KEY`), a live Odoo on Alibaba Cloud ECS for a real `account.move` write, and the real MCP write path (SSE MCP via the Model Studio Responses API). See [ARCHITECTURE.md](ARCHITECTURE.md).
-- **Production key management:** the HMAC signing key defaults to a development placeholder and must be supplied via `LEDGERPILOT_SIGNING_KEY` from a secret manager (e.g. Alibaba Cloud KMS) in production; the token non-repudiation guarantee depends on that key staying secret.
+```bash
+pip install -e .
+echo "DASHSCOPE_API_KEY=sk-..." >> .env         # a workspace key from Model Studio
+python -m eval.harness --live                    # measured false-write rate + Wilson 95% CI
+```
 
-The Alibaba Cloud proof artifacts are [ledgerpilot/planner.py](ledgerpilot/planner.py) (Qwen calls via Model Studio) and [ledgerpilot/odoo_client.py](ledgerpilot/odoo_client.py) (Odoo-on-ECS write + Responses-API MCP path).
+`--live` feeds 16 natural-language close tasks (some deliberately easy to misclassify, e.g. prepaid vs expense, capitalize vs expense) to the real Qwen planner, then judges what the model produced. It reports the model's raw accuracy, how many of its mistakes the gate blocked, and the false-write rate on the entries the gate approved.
+
+## Known limitations (honest scope)
+
+- **Multi-line tax splits are not yet enforced by reconciliation.** The gate checks that every account is within policy and the total matches the document; it does not yet verify a per-line net/VAT split, so a VAT-inclusive invoice lumped into one expense line can pass. The measured task set is single-account for that reason; per-line reconciliation against document net/tax is the next extension.
+- **The live measurement needs an authorized Model Studio account** (`--live` returns 403 until Identity Verification clears). The gate, demo, and offline stress-test need no key.
+- **A real ERP write** requires an Odoo instance on Alibaba Cloud ECS; `odoo_client.py` is unit-tested against a fake transport and runs live once `ODOO_*` point at the instance.
+- **Production key management:** the HMAC signing key defaults to a development placeholder and must come from a secret manager (e.g. Alibaba Cloud KMS) via `LEDGERPILOT_SIGNING_KEY`.
+
+## Submission artifacts (Global AI Hackathon with Qwen Cloud)
+
+| Requirement | Where |
+|---|---|
+| Track | Autopilot Agent |
+| Public repo + OSS license | this repo, [LICENSE](LICENSE) (Apache-2.0) |
+| Proof of Alibaba Cloud Deployment (code file) | [ledgerpilot/planner.py](ledgerpilot/planner.py) (Qwen via Model Studio), [ledgerpilot/odoo_client.py](ledgerpilot/odoo_client.py) (Odoo-on-ECS + Responses-API MCP) |
+| Architecture diagram | [docs/architecture.svg](docs/architecture.svg), [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Demo video script | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) |
+| Text description | [docs/DEVPOST.md](docs/DEVPOST.md) |
+| Blog post (bonus) | [docs/BLOG.md](docs/BLOG.md) |
 
 ## License
 

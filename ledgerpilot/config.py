@@ -9,6 +9,27 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from decimal import Decimal
+from pathlib import Path
+
+
+def _load_dotenv() -> None:
+    """Populate os.environ from a local .env file if present.
+
+    Lightweight, no dependency. Existing environment variables win, so real
+    shell config is never overridden. Looks in the current directory and the
+    two parents (covers running from repo root or a subdirectory).
+    """
+    for base in (Path.cwd(), *Path.cwd().parents[:2]):
+        env_file = base / ".env"
+        if not env_file.exists():
+            continue
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            os.environ.setdefault(key.strip(), val.strip())
+        break
 
 
 @dataclass(frozen=True)
@@ -29,6 +50,7 @@ class Config:
 
 
 def load_config() -> Config:
+    _load_dotenv()
     return Config(
         dashscope_api_key=os.environ.get("DASHSCOPE_API_KEY", ""),
         dashscope_base_url=os.environ.get(

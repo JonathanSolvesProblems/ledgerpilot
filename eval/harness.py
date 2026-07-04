@@ -30,8 +30,8 @@ from ledgerpilot.chart_of_accounts import default_state
 from ledgerpilot.gate import Gate
 from ledgerpilot.models import GateDecision
 
-from .corpus import Case, ErrorClass, build_corpus
-from .scripted_planner import LivePlanner, ScriptedPlanner
+from .corpus import Case, build_corpus
+from .scripted_planner import ScriptedPlanner
 
 
 @dataclass
@@ -160,19 +160,23 @@ def _print_report(metrics: Metrics, rows: list[dict], mode: str) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     argv = argv if argv is not None else sys.argv[1:]
-    live = "--live" in argv
-    cases = build_corpus()
-    if live:
-        # The live planner only handles clean scenarios (we cannot force a real
-        # model to make specific errors); measure the true model + gate pipeline.
-        cases = [c for c in cases if c.error_class == ErrorClass.NONE]
-        planner = LivePlanner()
-        mode = "live: real Qwen planner, clean scenarios"
-    else:
-        planner = ScriptedPlanner()
-        mode = "offline synthetic gate stress-test (no LLM)"
-    metrics, rows = evaluate(cases, planner)
-    _print_report(metrics, rows, mode)
+    if "--live" in argv:
+        # Measured run: the real Qwen planner drafts entries from natural-language
+        # close tasks and the gate judges what it produced.
+        from ledgerpilot.planner import Planner
+
+        from .live_eval import evaluate_live, print_live_report
+        metrics, rows = evaluate_live(Planner())
+        print_live_report(metrics, rows)
+        if metrics.errored == metrics.total and metrics.total:
+            print("\nAll planner calls failed. If you see 403 'Access to model")
+            print("denied', the Alibaba Cloud account is not yet authorized to call")
+            print("models: finish Identity Verification so the 'Some Features")
+            print("Restricted' banner clears, then re-run. The key/endpoint are fine.")
+        return
+    # Offline synthetic gate stress-test (no LLM, no key).
+    metrics, rows = evaluate(build_corpus(), ScriptedPlanner())
+    _print_report(metrics, rows, "offline synthetic gate stress-test (no LLM)")
 
 
 if __name__ == "__main__":
