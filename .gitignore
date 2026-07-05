@@ -16,6 +16,7 @@ odoo_config.json
 
 # Internal planning (kept local, not published)
 docs/NEXT_STEPS.md
+submission.md
 
 # OS / editor
 .DS_Store

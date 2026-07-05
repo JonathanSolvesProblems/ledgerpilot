@@ -24,6 +24,8 @@
     </style>
   </defs>
 
+  <rect x="0" y="0" width="1300" height="780" fill="#ffffff"/>
+
   <!-- Header -->
   <text x="40" y="46" class="title">LedgerPilot</text>
   <text x="40" y="70" class="subtitle">Autonomous month-end-close agent on Qwen Cloud  ·  Track 4: Autopilot Agent  ·  the ledger is a system of record the LLM may never write to directly</text>
