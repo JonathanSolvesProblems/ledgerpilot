@@ -44,8 +44,8 @@ LedgerPilot is a three-layer autonomous close agent. The defining design decisio
 - Reads approval emails for who authorized what (feeds segregation-of-duties checks).
 
 ### 2. Planner (generative): `planner.py`
-- Uses **qwen-max** / **qwen-plus** with **function calling** to draft candidate journal entries.
-- Reads current ERP state (open period, account list, existing entries) through the Odoo MCP read tools so proposals are grounded, not hallucinated.
+- Uses **qwen3.7-max** with **function calling** to draft candidate journal entries.
+- The chart of accounts is not dumped into the prompt. The model must call the `lookup_accounts` tool to discover valid account codes, so account selection is grounded in real chart data rather than invented (this is where the function-calling loop lives).
 - Output is a structured `Proposal`, never a direct write.
 
 ### 3. Deterministic gate (the scored core): `gate.py`
@@ -87,8 +87,8 @@ Status column is explicit so nothing reads as provisioned when it is not.
 - **False-reject rate (negative control):** **0% (0/36)**.
 This measures the gate's *decision logic*, not a model's accuracy.
 
-**Measured LLM + gate** (`python -m eval.harness --live`, needs `DASHSCOPE_API_KEY`): the real Qwen planner drafts entries from natural-language tasks and the gate judges what the model produced. This is the real-pipeline number; the harness is wired and one command produces it once a key exists.
+**Measured LLM + gate** (`python -m eval.harness --live`): the real Qwen planner (with function calling) drafts entries from 39 natural-language tasks and the gate judges what the model produced. This run is done and its raw transcript is committed at `docs/live_run.txt`. The gate caught every mistake either model made and wrote 0 wrong entries: Qwen3.7-Max was 97.4% accurate (1 mistake, caught; Wilson 95% CI at most 9.18%) and qwen-flash 87.2% (5 mistakes, all caught; at most 10.15%). The mistakes were cross-class postings; a within-class account error would surface as a nonzero rate, so the metric is falsifiable, not zero by construction.
 
 ## Deployment status (honest scope)
 
-Working without credentials: the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the offline pipeline, the demo, and the test suite. Pending for full production proof: `DASHSCOPE_API_KEY` for the `--live` path, a live Odoo on Alibaba Cloud ECS for a real `account.move` write, and wiring the MCP write through the Responses API. `ledgerpilot/writeback.py` + `ledgerpilot/config.py` are the designated Alibaba Cloud proof artifacts once the ECS instance is connected.
+Working without credentials: the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the offline pipeline, the demo, and the test suite. Done with a Model Studio key: the `--live` measurement against real Qwen output (transcript in `docs/live_run.txt`). Still pending: a live Odoo on Alibaba Cloud ECS for one real `account.move` write. The designated **Proof of Alibaba Cloud Deployment** code file is `ledgerpilot/planner.py` (the function-calling Model Studio calls); `ledgerpilot/odoo_client.py` and `ledgerpilot/config.py` support it.

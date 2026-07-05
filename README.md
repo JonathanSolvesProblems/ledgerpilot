@@ -26,12 +26,12 @@ This measures the **gate's decision logic**, not a model. It is a stress-test: t
 
 **2. Measured LLM + gate** (`python -m eval.harness --live`, needs `DASHSCOPE_API_KEY`): the real Qwen planner drafts entries from 39 natural-language close tasks, and the gate judges what the model actually produced. Measured on Alibaba Cloud Model Studio:
 
-| Model | Model accuracy | Gate caught | False-write rate | Wilson 95% CI |
+| Model | Model accuracy | Model mistakes caught | False-write rate | Wilson 95% CI |
 |---|---|---|---|---|
-| **Qwen3.7-Max** (flagship) | **100%** (39/39) | (0 mistakes to catch) | **0%** | ≤ 8.97% |
-| qwen-flash (faster, weaker) | 89.7% (35/39) | 2 of 4 mistakes | 5.41% | ≤ 17.70% |
+| **Qwen3.7-Max** (flagship) | 97.4% (38/39) | **1 of 1** | **0%** | ≤ 9.18% |
+| qwen-flash (faster, weaker) | 87.2% (34/39) | **5 of 5** | **0%** | ≤ 10.15% |
 
-The flagship was fully accurate and the gate wrote zero wrong entries. The metric is genuinely falsifiable, not zero by construction: on the weaker qwen-flash the gate caught the cross-class mistakes live (for example it rejected a COGS entry the model tried to post to accounts receivable and revenue), while two within-class account errors surfaced as a measured 5.41% false-write rate. That within-class residual is the gate's honestly disclosed limit (see Known limitations): it enforces account class and amount, not the choice between two accounts of the same class.
+The gate caught every mistake either model made, six in total, and wrote zero wrong entries. The mistakes were cross-class postings the reconciliation check catches: the flagship booked a software invoice to a prepaid asset instead of an expense, and qwen-flash posted a cost-of-goods entry to accounts receivable and revenue. The raw transcript is committed at [docs/live_run.txt](docs/live_run.txt). The 0% is not zero by construction: the gate catches cross-class and amount errors, not the choice between two accounts of the same class, so a within-class error would surface as a nonzero rate (see Known limitations); in this run every model error was cross-class and caught.
 
 The offline corpus includes *semantic* errors a balance check cannot catch (a balanced entry posted to the wrong account, wrong amount, flipped debit/credit, or off by a rounding cent). Those are caught by reconciling each proposal against the source document, which is the point.
 
@@ -90,7 +90,7 @@ eval/
   stats.py             # Wilson score interval
 scripts/
   live_close.py        # end-to-end real close (record this on model access)
-tests/                 # 46 tests: gate, reconciliation, tokens, pipeline, clients, live eval
+tests/                 # 53 tests: gate, reconciliation, tokens, pipeline, clients, live eval
 docs/
   architecture.svg     # system + Alibaba Cloud topology diagram
   DEVPOST.md BLOG.md DEMO_SCRIPT.md
@@ -103,7 +103,7 @@ pip install -e .
 cp .env.example .env          # add DASHSCOPE_API_KEY (a signing key is generated for you)
 python -m eval.harness        # offline: 204-case synthetic stress-test, no key needed
 python demo.py                # end-to-end propose -> gate -> governed write, no key needed
-pytest                        # 46 tests
+pytest                        # 53 tests
 
 # with a Model Studio key in .env (auto-loaded):
 python -m eval.harness --live # MEASURED false-write rate on real Qwen output + Wilson CI
@@ -153,7 +153,8 @@ python -m eval.harness --live                    # measured false-write rate + W
 ## Known limitations (honest scope)
 
 - **Multi-line tax splits are not yet enforced by reconciliation.** The gate checks that every account is within policy and the total matches the document; it does not yet verify a per-line net/VAT split, so a VAT-inclusive invoice lumped into one expense line can pass. The measured task set is single-account for that reason; per-line reconciliation against document net/tax is the next extension.
-- **The live measurement needs an authorized Model Studio account** (`--live` returns 403 until Identity Verification clears). The gate, demo, and offline stress-test need no key.
+- **Within-class account selection is not caught, only account class.** The reconciliation policy validates that an entry hits an account of the correct class (an expense invoice must debit an expense account) and the right amount. If a model posts to a valid-but-wrong account of the same class, the gate passes it, so it would surface as a nonzero false-write rate. This is exactly why the metric is falsifiable rather than zero by construction; in the committed live run every model mistake happened to be cross-class and was caught, so the measured rate was 0%. In production the posting policy comes from the ERP's own chart-of-accounts structure and the organization's mapping rules maintained by controllers, not from a per-task list; the next step is escalating genuinely ambiguous within-class choices to a human rather than accepting any in-class account.
+- **The live measurement is done.** Its raw transcript (both models, on Model Studio) is committed at [docs/live_run.txt](docs/live_run.txt) so the headline numbers are verifiable, not just asserted. The gate, demo, and offline stress-test still need no key.
 - **A real ERP write** requires an Odoo instance on Alibaba Cloud ECS; `odoo_client.py` is unit-tested against a fake transport and runs live once `ODOO_*` point at the instance.
 - **Production key management:** the HMAC signing key defaults to a development placeholder and must come from a secret manager (e.g. Alibaba Cloud KMS) via `LEDGERPILOT_SIGNING_KEY`.
 

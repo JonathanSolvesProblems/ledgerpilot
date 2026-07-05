@@ -1,0 +1,108 @@
+﻿LedgerPilot -- committed live measurement transcript
+Recorded on Alibaba Cloud Model Studio (workspace-scoped Singapore endpoint). The planner uses function calling (lookup_accounts tool). Reproduce: python -m eval.harness --live
+
+==================== Model: qwen3.7-max (flagship) ====================
+================================================================================
+LedgerPilot - MEASURED live evaluation (real Qwen planner + gate)
+================================================================================
+  rent                   model:correct  gate:approved    approved
+  utilities              model:correct  gate:approved    approved
+  salaries               model:correct  gate:approved    approved
+  bank_fee               model:correct  gate:approved    approved
+  software               model:correct  gate:approved    approved
+  cogs                   model:correct  gate:approved    approved
+  accrued_payroll        model:correct  gate:approved    approved
+  utilities_accrual      model:correct  gate:approved    approved
+  prepaid_insurance      model:correct  gate:approved    approved
+  rent_prepaid_trap      model:correct  gate:approved    approved
+  equipment              model:correct  gate:approved    approved
+  service_revenue        model:correct  gate:approved    approved
+  interest_income        model:correct  gate:approved    approved
+  vat_settlement         model:correct  gate:approved    approved
+  ap_payment             model:correct  gate:approved    approved
+  ar_collection          model:correct  gate:approved    approved
+  cash_sale              model:correct  gate:approved    approved
+  service_cash           model:correct  gate:approved    approved
+  rent_on_credit         model:correct  gate:approved    approved
+  utilities_on_credit    model:correct  gate:approved    approved
+  software_on_credit     model:WRONG    gate:rejected    Does not reconcile to software_on_credit: debit accounts ['1200'] not permitted for invoice (allowed ['5000', '6000', '6100', '6200', '6300', '6900']).
+  cogs_cash              model:correct  gate:approved    approved
+  wire_fee               model:correct  gate:approved    approved
+  prepaid_rent_quarter   model:correct  gate:approved    approved
+  equipment_cash         model:correct  gate:approved    approved
+  ar_collection_2        model:correct  gate:approved    approved
+  ap_payment_2           model:correct  gate:approved    approved
+  vat_payment_2          model:correct  gate:approved    approved
+  interest_income_2      model:correct  gate:approved    approved
+  accrue_utilities_2     model:correct  gate:approved    approved
+  accrue_rent            model:correct  gate:approved    approved
+  prepaid_insurance_2    model:correct  gate:approved    approved
+  dividend_paid          model:correct  gate:approved    approved
+  share_issue            model:correct  gate:approved    approved
+  salaries_cash          model:correct  gate:approved    approved
+  saas_cash              model:correct  gate:approved    approved
+  cogs_on_credit_2       model:correct  gate:approved    approved
+  utilities_cash_2       model:correct  gate:approved    approved
+  bank_fee_monthly       model:correct  gate:approved    approved
+--------------------------------------------------------------------------------
+tasks scored:            39 (0 planner errors)
+model accuracy:          97.4%  (38/39 posted correctly by the model)
+model mistakes caught:   100.0%  (1/1 wrong proposals blocked)
+MEASURED FALSE-WRITE:    0.00%  (0 wrong of 38 approved; <= 9.18% at 95% CI, Wilson)
+  (a false write here is a within-policy account error the gate cannot
+   disambiguate; cross-class errors and amount errors are all blocked.)
+false-reject rate:       0.00%  (0 correct entries wrongly blocked)
+================================================================================
+
+==================== Model: qwen-flash (faster, weaker) ====================
+================================================================================
+LedgerPilot - MEASURED live evaluation (real Qwen planner + gate)
+================================================================================
+  rent                   model:correct  gate:approved    approved
+  utilities              model:WRONG    gate:rejected    Does not reconcile to utilities: credit accounts ['1100'] not permitted for invoice (allowed ['1000', '2000']).
+  salaries               model:WRONG    gate:rejected    Does not reconcile to salaries: credit accounts ['1100'] not permitted for invoice (allowed ['1000', '2100']).
+  bank_fee               model:correct  gate:approved    approved
+  software               model:correct  gate:approved    approved
+  cogs                   model:correct  gate:approved    approved
+  accrued_payroll        model:correct  gate:approved    approved
+  utilities_accrual      model:correct  gate:approved    approved
+  prepaid_insurance      model:correct  gate:approved    approved
+  rent_prepaid_trap      model:WRONG    gate:rejected    Does not reconcile to rent_prepaid_trap: credit accounts ['1100'] not permitted for invoice (allowed ['1000']).
+  equipment              model:correct  gate:approved    approved
+  service_revenue        model:correct  gate:approved    approved
+  interest_income        model:correct  gate:approved    approved
+  vat_settlement         model:correct  gate:approved    approved
+  ap_payment             model:correct  gate:approved    approved
+  ar_collection          model:correct  gate:approved    approved
+  cash_sale              model:correct  gate:approved    approved
+  service_cash           model:correct  gate:approved    approved
+  rent_on_credit         model:correct  gate:approved    approved
+  utilities_on_credit    model:correct  gate:approved    approved
+  software_on_credit     model:correct  gate:approved    approved
+  cogs_cash              model:correct  gate:approved    approved
+  wire_fee               model:correct  gate:approved    approved
+  prepaid_rent_quarter   model:correct  gate:approved    approved
+  equipment_cash         model:correct  gate:approved    approved
+  ar_collection_2        model:correct  gate:approved    approved
+  ap_payment_2           model:correct  gate:approved    approved
+  vat_payment_2          model:correct  gate:approved    approved
+  interest_income_2      model:correct  gate:approved    approved
+  accrue_utilities_2     model:correct  gate:approved    approved
+  accrue_rent            model:correct  gate:approved    approved
+  prepaid_insurance_2    model:correct  gate:approved    approved
+  dividend_paid          model:correct  gate:approved    approved
+  share_issue            model:correct  gate:approved    approved
+  salaries_cash          model:correct  gate:approved    approved
+  saas_cash              model:correct  gate:approved    approved
+  cogs_on_credit_2       model:WRONG    gate:rejected    Does not reconcile to cogs_on_credit_2: debit accounts ['1100'] not permitted for invoice (allowed ['5000', '6000', '6100', '6200', '6300', '6900']); credit accounts ['4000'] not permitted for invoice (allowed ['2000', '1000']).
+  utilities_cash_2       model:WRONG    gate:rejected    Does not reconcile to utilities_cash_2: credit accounts ['1100'] not permitted for invoice (allowed ['1000', '2000']).
+  bank_fee_monthly       model:correct  gate:approved    approved
+--------------------------------------------------------------------------------
+tasks scored:            39 (0 planner errors)
+model accuracy:          87.2%  (34/39 posted correctly by the model)
+model mistakes caught:   100.0%  (5/5 wrong proposals blocked)
+MEASURED FALSE-WRITE:    0.00%  (0 wrong of 34 approved; <= 10.15% at 95% CI, Wilson)
+  (a false write here is a within-policy account error the gate cannot
+   disambiguate; cross-class errors and amount errors are all blocked.)
+false-reject rate:       0.00%  (0 correct entries wrongly blocked)
+================================================================================

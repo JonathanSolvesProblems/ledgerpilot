@@ -114,7 +114,7 @@
   <text x="60" y="318" class="boxlabel" fill="#14532d">Offline synthetic gate stress-test (204 cases, 12 scenarios x 14 error classes)</text>
   <text x="60" y="346" class="metric">False-write rate:  0 wrong of 36 approved  ·  &lt;= 8.33% at 95% CI</text>
   <text x="60" y="370" class="metric">Catch rate:  100%  (168 / 168 = 156 blocked + 12 escalated to human)</text>
-  <text x="60" y="394" class="metric">False-reject rate:  0%  (0 / 40 clean controls wrongly blocked)</text>
+  <text x="60" y="394" class="metric">False-reject rate:  0%  (0 / 36 clean controls wrongly blocked)</text>
   <text x="60" y="412" class="boxsub">reproduce: python -m eval.harness   (offline, no key)  ·  --live uses the real Qwen planner</text>
 
   <!-- Cloud band -->

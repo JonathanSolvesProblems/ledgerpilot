@@ -1,4 +1,4 @@
-Two recording scripts, grounded in the exact on-screen output. The demo opens on the reconciliation catch and refuses the write; the suite passes (46 tests); the harness prints the 0.00% / <=8.33% CI numbers.
+Two recording scripts, grounded in the exact on-screen output. The demo opens on the reconciliation catch and refuses the write; the suite passes (53 tests); the harness prints the 0.00% / <=8.33% CI numbers.
 
 ---
 
@@ -98,7 +98,7 @@ ON SCREEN:
 1. Open `ledgerpilot/writeback.py`. Scroll to the module docstring (lines 13-14): "This file is the designated 'Proof of Alibaba Cloud Deployment' artifact: it contains the calls that reach the Odoo instance running on Alibaba Cloud ECS." Then scroll to `_write_to_odoo` (the `create_move` payload).
 2. Cut to `ledgerpilot/odoo_client.py`. Show `XmlrpcOdooClient.create_move` (the `execute_kw` XML-RPC call to `account.move`), then `ModelStudioMcpClient.create_move` (the `client.responses.create(model=..., tools=[{"type":"mcp","server_label":"odoo",...}])` Responses-API MCP call).
 
-NARRATION: "And this is the code that talks to Alibaba Cloud. writeback.py is the linked proof file. It calls into odoo_client.py, which writes the account.move to the ECS-hosted Odoo over XML-RPC, or routes the same write through the Odoo MCP server using Model Studio's Responses API. Same governance on both sides, running on Alibaba Cloud."
+NARRATION: "And this is the code that talks to Alibaba Cloud. planner.py is the linked proof file: it calls Qwen on Model Studio with function calling. odoo_client.py writes the account.move to the ECS-hosted Odoo over XML-RPC, or routes the same write through the Odoo MCP server on the Model Studio Responses API. Same governance on both sides, running on Alibaba Cloud."
 
 ---
 
@@ -109,5 +109,6 @@ The demo opens on the semantic save: `SCENE 1` in `demo.py` proposes a balanced 
 Caveats:
 - Script 1 is fully recordable right now, offline, with no key (demo.py and the harness both run locally). The `[0:38-1:22]` and `[1:22-2:05]` segments are the exact outputs I captured above.
 - Script 2 requires provisioning that the repo's own honest-scope section lists as pending: a running ECS Odoo instance and a real `DASHSCOPE_API_KEY`. Record Script 2 only after those exist. If the ECS instance is not ready by the deadline, the honest fallback is to show the Model Studio call (Beat 2, which needs only the key) plus the two proof code files (Beat 3), and show the ECS console instance page for Beat 1, rather than staging a fake Odoo.
-- Video host must be YouTube, Vimeo, or Youku (not Facebook). Keep the demo strictly under 3:00; judges are not required to watch past it.
+- Host on YouTube or Vimeo (both appear on both versions of the rules; avoid Youku-only or Facebook-only), set PUBLIC. Keep the demo strictly under 3:00; judges are not required to watch past it.
+- Deployment proof: submit BOTH a code-file link (planner.py) and a short separate recording of the backend on Alibaba Cloud (a clean take of `python -m eval.harness --live` hitting Model Studio works, no live Odoo needed).
 - I did not commit these changes. Commit them before you record so the repo shown in Script 2 matches the video.
