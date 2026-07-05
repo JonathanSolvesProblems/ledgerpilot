@@ -67,7 +67,7 @@ Status column is explicit so nothing reads as provisioned when it is not.
 
 | Component | Alibaba Cloud service | Status |
 |---|---|---|
-| Qwen models (planner `qwen3-max`, vision `qwen3-vl-plus`) | **Model Studio / DashScope** (OpenAI-compatible + Responses API for MCP) | Coded; live on API key |
+| Qwen models (planner `qwen3.7-max`, vision `qwen3-vl-plus`) | **Model Studio / DashScope** (OpenAI-compatible + Responses API for MCP) | Coded; live on API key |
 | Odoo ERP (system of record) | **ECS** (Elastic Compute Service) | Coded (`odoo_client.py`); live on ECS provision |
 | Document store (statements, invoices) | **OSS** (Object Storage Service) | Planned |
 | Orchestration / agent runtime | **Function Compute** | Planned |
@@ -81,7 +81,7 @@ Status column is explicit so nothing reads as provisioned when it is not.
 
 `eval/harness.py` reports two clearly separated numbers:
 
-**Synthetic gate stress-test** (`python -m eval.harness`, no LLM): a 204-case corpus (12 scenarios x 15 error classes) run through the gate.
+**Synthetic gate stress-test** (`python -m eval.harness`, no LLM): a 204-case corpus (12 scenarios x 14 error classes, plus clean controls) run through the gate.
 - **False-write rate:** 0 of 36 approved, **≤ 8.33% at 95% CI** (Rule of Three), reported with the bound so a zero result is honest.
 - **Catch rate:** **100% (168/168 = 156 blocked + 12 escalated to a human)**, including semantic classes (wrong amount, wrong account, direction swap, VAT rounding) that a balance-only check cannot detect.
 - **False-reject rate (negative control):** **0% (0/36)**.

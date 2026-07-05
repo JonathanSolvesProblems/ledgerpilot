@@ -25,7 +25,7 @@ KEY = "test-key"
 
 def cfg() -> Config:
     return Config(
-        dashscope_api_key="", dashscope_base_url="", planner_model="qwen3-max",
+        dashscope_api_key="", dashscope_base_url="", planner_model="qwen3.7-max",
         vision_model="qwen3-vl-plus", signing_key=KEY, approval_threshold=Decimal("10000.00"),
         odoo_url="", odoo_db="", odoo_username="", odoo_api_key="", odoo_mcp_server_url="",
     )

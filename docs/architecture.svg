@@ -51,7 +51,7 @@
   <!-- Planner -->
   <rect x="400" y="130" width="170" height="120" class="gen" rx="10"/>
   <text x="485" y="162" text-anchor="middle" class="boxlabel">Planner</text>
-  <text x="485" y="188" text-anchor="middle" class="boxsub">qwen3-max +</text>
+  <text x="485" y="188" text-anchor="middle" class="boxsub">qwen3.7-max +</text>
   <text x="485" y="205" text-anchor="middle" class="boxsub">function calling</text>
   <text x="485" y="227" text-anchor="middle" class="boxsub">proposes entry (never writes)</text>
 
@@ -109,9 +109,9 @@
 
   <!-- Metric callout -->
   <rect x="40" y="290" width="530" height="130" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5" rx="10"/>
-  <text x="60" y="318" class="boxlabel" fill="#14532d">Measured result (120-case seeded-error corpus, planner -&gt; gate pipeline)</text>
-  <text x="60" y="346" class="metric">False-write rate:  0 wrong of 40 approved  ·  &lt;= 7.50% at 95% CI (Rule of Three)</text>
-  <text x="60" y="370" class="metric">Catch rate:  100%  (80 / 80 seeded errors blocked or escalated)</text>
+  <text x="60" y="318" class="boxlabel" fill="#14532d">Offline synthetic gate stress-test (204 cases, 12 scenarios x 14 error classes)</text>
+  <text x="60" y="346" class="metric">False-write rate:  0 wrong of 36 approved  ·  &lt;= 8.33% at 95% CI</text>
+  <text x="60" y="370" class="metric">Catch rate:  100%  (168 / 168 = 156 blocked + 12 escalated to human)</text>
   <text x="60" y="394" class="metric">False-reject rate:  0%  (0 / 40 clean controls wrongly blocked)</text>
   <text x="60" y="412" class="boxsub">reproduce: python -m eval.harness   (offline, no key)  ·  --live uses the real Qwen planner</text>
 

@@ -14,7 +14,7 @@ Built for the **Global AI Hackathon Series with Qwen Cloud** (Track 4: **Autopil
 
 Two numbers, and I keep them separate on purpose.
 
-**1. Synthetic gate stress-test** (`python -m eval.harness`, offline, no API key): 204 cases across 12 scenarios and 15 error classes, run through the gate.
+**1. Synthetic gate stress-test** (`python -m eval.harness`, offline, no API key): 204 cases across 12 scenarios and 14 error classes (plus clean controls), run through the gate.
 
 | Metric | Result |
 |---|---|
@@ -54,7 +54,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full diagram and Alibaba Cloud de
 
 ```
 unstructured inputs ──► Qwen perception ──► Qwen planner ──► DETERMINISTIC GATE ──► signed token ──► Odoo write-back
- (statements, invoices,    (qwen3-vl-plus)    (qwen3-max +     (balance, accounts,    (HMAC)           (idempotent,
+ (statements, invoices,    (qwen3-vl-plus)    (qwen3.7-max +   (balance, accounts,    (HMAC)           (idempotent,
   approval emails)                             function calling) period, SoD, limits,                  human gate, rollback)
                                                                  reconcile-to-source)
                                                                        │
@@ -75,7 +75,7 @@ ledgerpilot/
   writeback.py         # governed write-back (gate re-check -> token -> idempotent commit)
   odoo_client.py       # XmlrpcOdooClient (ECS) + ModelStudioMcpClient (Responses API MCP)
 eval/
-  corpus.py            # parametrized seeded-error corpus (12 scenarios x 15 error classes)
+  corpus.py            # parametrized seeded-error corpus (12 scenarios x 14 error classes)
   scripted_planner.py  # offline error-injection planner
   harness.py           # offline stress-test + --live measured run
   live_tasks.py        # realistic close tasks with ground truth for the live run

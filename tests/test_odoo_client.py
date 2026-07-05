@@ -17,7 +17,7 @@ from ledgerpilot.odoo_client import (
 
 def blank_config(**overrides) -> Config:
     base = dict(
-        dashscope_api_key="", dashscope_base_url="", planner_model="qwen3-max",
+        dashscope_api_key="", dashscope_base_url="", planner_model="qwen3.7-max",
         vision_model="qwen3-vl-plus", signing_key="k", approval_threshold=Decimal("10000.00"),
         odoo_url="", odoo_db="", odoo_username="", odoo_api_key="", odoo_mcp_server_url="",
     )
@@ -70,6 +70,9 @@ class FakeServerProxy:
         if model == "account.account" and method == "search":
             code = args[0][0][2]
             return [int(code)]  # pretend the account id equals its code
+        if model == "account.move" and method == "search":
+            # No existing move with this hash (first write).
+            return []
         if model == "account.move" and method == "create":
             self.created.append(args[0])
             return 4242
@@ -98,6 +101,30 @@ def test_xmlrpc_client_posts_a_move(monkeypatch):
     assert created["ref"] == "JE-1"
     assert len(created["line_ids"]) == 2
     assert created["line_ids"][0][2]["account_id"] == 6100  # code resolved to id
+    assert "ledgerpilot:abc123" in created["narration"]  # hash embedded for dedupe
+
+
+class ExistingMoveProxy(FakeServerProxy):
+    """A server where a move with the same hash already exists."""
+
+    def execute_kw(self, db, uid, key, model, method, args, kw=None):
+        if model == "account.move" and method == "search":
+            return [999]  # already posted
+        return super().execute_kw(db, uid, key, model, method, args, kw)
+
+
+def test_xmlrpc_client_is_idempotent_server_side(monkeypatch):
+    import ledgerpilot.odoo_client as oc
+
+    proxies = []
+    monkeypatch.setattr(oc.xmlrpc_client, "ServerProxy",
+                        lambda url: proxies.append(ExistingMoveProxy(url)) or proxies[-1])
+    client = XmlrpcOdooClient(config=blank_config(
+        odoo_url="http://ecs-odoo:8069", odoo_db="lp", odoo_username="agent", odoo_api_key="k",
+    ))
+    move_id = client.create_move(SAMPLE_PAYLOAD)
+    assert move_id == 999                 # returned the existing move
+    assert proxies[-1].created == []      # never posted again
 
 
 class FakeResponses:

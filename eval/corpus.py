@@ -184,8 +184,9 @@ def build_corpus() -> list[Case]:
     """Expand base scenarios into a parametrized corpus.
 
     Per scenario: one correct case for each amount variant (the approved-write
-    denominator), plus one case for each error class. With 12 scenarios that is
-    12*3 = 36 correct controls and 12*15 = 180 seeded errors.
+    denominator), plus one case for each of the 14 error classes (ErrorClass has
+    15 members; NONE is the clean control, not an error). With 12 scenarios that
+    is 12*3 = 36 correct controls and 12*14 = 168 seeded errors (204 cases).
 
     Note: this is a SYNTHETIC gate stress-test, not a measurement of a live
     model. The clean controls are correct entries reconciled against their own

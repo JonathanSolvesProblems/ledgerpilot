@@ -141,9 +141,14 @@ def print_live_report(metrics: LiveMetrics, rows: list[dict]) -> None:
           f"({metrics.model_correct}/{metrics.scored} posted correctly by the model)")
     print(f"model mistakes caught:   {metrics.model_error_catch_rate * 100:.1f}%  "
           f"({metrics.model_errors_caught}/{metrics.model_errors} wrong proposals blocked)")
-    ub = metrics.false_write_upper_95 * 100
-    print(f"MEASURED FALSE-WRITE:    {metrics.false_write_rate * 100:.2f}%  "
-          f"({metrics.false_writes} wrong of {metrics.approved} approved; <= {ub:.2f}% at 95% CI, Wilson)")
+    if metrics.approved == 0:
+        print("MEASURED FALSE-WRITE:    no gate-approved writes yet; rate undefined (n=0)")
+    else:
+        ub = metrics.false_write_upper_95 * 100
+        print(f"MEASURED FALSE-WRITE:    {metrics.false_write_rate * 100:.2f}%  "
+              f"({metrics.false_writes} wrong of {metrics.approved} approved; <= {ub:.2f}% at 95% CI, Wilson)")
+        print("  (a false write here is a within-policy account error the gate cannot")
+        print("   disambiguate; cross-class errors and amount errors are all blocked.)")
     print(f"false-reject rate:       "
           f"{(metrics.false_rejects / metrics.model_correct * 100) if metrics.model_correct else 0:.2f}%  "
           f"({metrics.false_rejects} correct entries wrongly blocked)")

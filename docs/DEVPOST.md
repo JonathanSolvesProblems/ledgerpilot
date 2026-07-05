@@ -1,7 +1,3 @@
-I have what I need. The repo uses `qwen3-max` (planner) and `qwen3-vl-plus` (vision), matching the task. Here is the Devpost text description.
-
----
-
 # LedgerPilot
 
 **Track 4: Autopilot Agent**
@@ -50,15 +46,15 @@ The deterministic gate is the single trust boundary and the only path to the led
 
 Everything runs on Alibaba Cloud Model Studio through the OpenAI-compatible endpoint.
 
-- **Planner: `qwen3-max` with function calling.** The planner drafts entries and calls tools to ground each line against the chart of accounts, so account codes are resolved against real data instead of invented. Harder cases can enable Qwen3 thinking mode.
+- **Planner: `qwen3.7-max` with function calling.** The planner drafts entries and calls tools to ground each line against the chart of accounts, so account codes are resolved against real data instead of invented. Harder cases can enable Qwen3 thinking mode.
 - **Ingestion: `qwen3-vl-plus`.** The vision model reads document and email images (statements, invoices, approvals) and extracts the line items and amounts the planner works from.
-- **Governed write via SSE-MCP on the Responses API.** The Odoo MCP server is attached as an SSE MCP tool through Model Studio's Responses API (`tools=[{"type": "mcp", ...}]`, `server_protocol: "sse"`). The model is constrained to call only `execute_approved_write` and only with a valid signed token, so the gate stays authoritative even on the model-driven write path. An XML-RPC client provides a direct write path to the same Odoo instance.
+- **Governed write via SSE-MCP on the Responses API.** The Odoo MCP server is attached as an SSE MCP tool through Model Studio's Responses API (`tools=[{"type": "mcp", ...}]`). An entry reaches this path only after LedgerPilot's own deterministic gate has re-checked and approved it, so the gate, not the model, is authoritative: the MCP client is instructed to call `validate_write` then `execute_approved_write`, but the safety guarantee comes from the pre-gate, not from the prompt. An XML-RPC client provides a direct, idempotent write path to the same Odoo instance (the content hash is embedded in the move and deduplicated server-side).
 
 ## Architecture
 
 ```
 unstructured inputs ──► Qwen perception ──► Qwen planner ──► DETERMINISTIC GATE ──► signed token ──► Odoo write-back
- (statements, invoices,   (qwen3-vl-plus)    (qwen3-max +     (balance, accounts,    (HMAC)          (idempotent,
+ (statements, invoices,   (qwen3-vl-plus)    (qwen3.7-max +     (balance, accounts,    (HMAC)          (idempotent,
   approval emails)                            function calling) period, SoD, limits,                  human gate, rollback)
                                                                 reconcile-to-source)
                                                                       │
@@ -67,15 +63,15 @@ unstructured inputs ──► Qwen perception ──► Qwen planner ──► D
 
 ## Measured result
 
-I ran a 120-case seeded-error corpus through the planner and gate pipeline and measured the write-safety numbers directly, rather than quoting a vendor-style accuracy percentage.
+I report two numbers, kept separate on purpose. The offline synthetic gate stress-test runs a 204-case seeded-error corpus (12 scenarios, 14 error classes) through the gate to prove the decision logic is sound. The measured live number (`--live`, needs a Model Studio key) runs the real Qwen planner and reports the false-write rate on what the model actually produced. I do not quote a vendor-style accuracy percentage.
 
-| Metric | Result |
+| Metric (offline synthetic stress-test) | Result |
 |---|---|
-| **False-write rate** | **0 wrong of 40 approved entries (≤ 7.5% at 95% CI, Rule of Three)** |
-| Catch rate | 100% (80 of 80 seeded errors blocked or escalated) |
-| False-reject rate | 0% (0 of 40 clean controls wrongly blocked) |
+| **False-write rate** | **0 wrong of 36 approved entries (≤ 8.33% at 95% CI)** |
+| Catch rate | 100% (168 of 168 seeded errors = 156 blocked + 12 escalated to a human) |
+| False-reject rate | 0% (0 of 36 clean controls wrongly blocked) |
 
-The false-reject line is the negative control: on clean, correct entries the gate stays silent and lets them through, so the catch rate is not bought with over-blocking. The corpus deliberately includes semantic errors a balance check cannot catch (a balanced entry posted to the wrong account or wrong amount), which are caught by reconciling each proposal against its source document. Reproduce it with `python -m eval.harness` (offline, no key) or `python -m eval.harness --live` (real Qwen planner).
+The false-reject line is the negative control: on clean, correct entries the gate stays silent and lets them through, so the catch rate is not bought with over-blocking. The corpus deliberately includes semantic errors a balance check cannot catch (a balanced entry posted to the wrong account or wrong amount, a flipped debit/credit, a rounding slip), which are caught by reconciling each proposal against its source document. This offline number measures the gate's decision logic, not a model. The live measured number (`python -m eval.harness --live`) validates the real Qwen planner against a class-level posting policy independent of the answer, so a plausible-but-wrong posting can pass and the false-write rate is genuinely falsifiable. Reproduce the offline number with `python -m eval.harness` (no key needed).
 
 ## Mapping to named controls
 
@@ -97,7 +93,7 @@ Anyone can prompt "build me an accounting agent." The defensible part is not the
 
 I want to be precise about what runs today versus what a production deployment would require.
 
-- **Working now, no credentials:** the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the 120-case offline pipeline, the demo, and the test suite. The offline harness uses an error-injection planner to stress every gate check against known ground truth, so the reported numbers are a gate stress-test on a synthetic, self-constructed corpus, not yet a production sensitivity study.
+- **Working now, no credentials:** the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the 204-case offline synthetic stress-test, the demo, and the test suite. The offline harness uses an error-injection planner to stress every gate check against known ground truth, so the reported numbers are a gate stress-test on a synthetic, self-constructed corpus, not yet a production sensitivity study.
 - **Needs a key or cloud:** the `--live` Qwen path (`DASHSCOPE_API_KEY`), a live Odoo on Alibaba Cloud ECS for a real `account.move` write, and the SSE-MCP write path through the Model Studio Responses API.
 - **To production this would need:** integration with a real ERP and its actual chart of accounts and period calendar, a prospective study measuring false-write rate against a gold-standard set of real closes, and proper key management for the signing key (it currently defaults to a development value).
 

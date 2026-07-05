@@ -39,34 +39,46 @@ class FakePlanner:
         return Proposal(entry=entry)
 
 
+EXPENSE = ("5000", "6000", "6100", "6200", "6300", "6900")
+
+# Policy is class-level (all expense accounts), independent of the single oracle
+# account, so a within-class wrong pick can pass the gate: the measurement is
+# falsifiable, not zero by construction.
 TASKS = [
-    LiveTask("ok", "p-ok", "4500.00", "6100", "1000"),
-    LiveTask("wrong_acct", "p-wa", "4500.00", "6100", "1000"),
-    LiveTask("wrong_amt", "p-amt", "4500.00", "6100", "1000"),
+    LiveTask("ok", "p-ok", "4500.00", "6100", "1000", EXPENSE, ("1000",)),
+    LiveTask("within_class", "p-wc", "4500.00", "6100", "1000", EXPENSE, ("1000",)),
+    LiveTask("cross_class", "p-cc", "4500.00", "6100", "1000", EXPENSE, ("1000",)),
+    LiveTask("wrong_amt", "p-amt", "4500.00", "6100", "1000", EXPENSE, ("1000",)),
 ]
 
 
-def test_gate_writes_only_correct_and_blocks_all_model_mistakes():
+def test_measured_eval_is_falsifiable_not_zero_by_construction():
     planner = FakePlanner({
         "p-ok": mk_entry("6100", "1000", "4500.00"),   # correct
-        "p-wa": mk_entry("6900", "1000", "4500.00"),   # wrong account
-        "p-amt": mk_entry("6100", "1000", "4600.00"),  # wrong amount
+        "p-wc": mk_entry("6900", "1000", "4500.00"),   # within-class wrong -> APPROVED but wrong
+        "p-cc": mk_entry("1200", "1000", "4500.00"),   # cross-class (asset) -> blocked
+        "p-amt": mk_entry("6100", "1000", "4600.00"),  # wrong amount -> blocked
     })
     metrics, rows = evaluate_live(planner, TASKS)
-    assert metrics.approved == 1
-    assert metrics.false_writes == 0
+    # Two entries pass the policy gate: the correct one and the within-class wrong one.
+    assert metrics.approved == 2
+    # The within-class wrong posting is a real, measured false write (not caught).
+    assert metrics.false_writes == 1
+    assert metrics.false_write_rate == 0.5
     assert metrics.model_correct == 1
-    assert metrics.model_errors == 2
+    assert metrics.model_errors == 3
+    # Cross-class + wrong-amount are caught; the within-class one is not.
     assert metrics.model_errors_caught == 2
-    assert metrics.model_error_catch_rate == 1.0
-    assert 0.0 <= metrics.false_write_upper_95 <= 1.0
+    assert 0.0 < metrics.false_write_upper_95 <= 1.0
 
 
 def test_planner_errors_are_counted_not_fatal():
-    planner = FakePlanner({"p-ok": mk_entry("6100", "1000", "4500.00"),
-                           "p-wa": None, "p-amt": None})
+    planner = FakePlanner({
+        "p-ok": mk_entry("6100", "1000", "4500.00"),
+        "p-wc": None, "p-cc": None, "p-amt": None,
+    })
     metrics, _ = evaluate_live(planner, TASKS)
-    assert metrics.errored == 2
+    assert metrics.errored == 3
     assert metrics.scored == 1
     assert metrics.approved == 1
 
@@ -74,10 +86,19 @@ def test_planner_errors_are_counted_not_fatal():
 def test_live_task_set_is_nontrivial():
     tasks = build_live_tasks()
     assert len(tasks) >= 12
-    # every task has a single expected debit/credit and a positive amount
     for t in tasks:
         assert t.expected_debit and t.expected_credit
         assert float(t.gross) > 0
+        # the oracle account must be within the policy the gate enforces
+        assert t.expected_debit in t.policy_debit
+        assert t.expected_credit in t.policy_credit
+
+
+def test_policy_is_broader_than_oracle_for_some_tasks():
+    """At least some tasks have a multi-account policy, so a within-policy wrong
+    pick is possible and the measured false-write rate is not zero by construction."""
+    tasks = build_live_tasks()
+    assert any(len(t.policy_debit) > 1 for t in tasks)
 
 
 # --- Wilson interval sanity ------------------------------------------------

@@ -1,4 +1,4 @@
-Both fixes are verified (demo opens on the reconciliation catch and refuses the write; 34 tests pass; harness prints the 0.00% / <=7.50% CI numbers). Here are the two scripts, grounded in the exact on-screen output.
+Two recording scripts, grounded in the exact on-screen output. The demo opens on the reconciliation catch and refuses the write; the suite passes (46 tests); the harness prints the 0.00% / <=8.33% CI numbers.
 
 ---
 
@@ -39,19 +39,19 @@ NARRATION: "Here is the whole path on one real invoice. The gate runs eight dete
 **[1:22 - 2:05] The measured false-write rate (the harness)**
 
 ON SCREEN: Run `python -m eval.harness`. Rest on the final report block. Highlight the three lines in turn:
-`FALSE-WRITE RATE:  0.00%  (0 wrong of 40 approved; <= 7.50% at 95% CI)`
-`catch rate:  100.00%  (80/80 errors blocked)`
-`false-reject rate:  0.00%  (0/40 controls wrongly blocked)`
+`FALSE-WRITE RATE:  0.00%  (0 wrong of 36 approved; <= 8.33% at 95% CI)`
+`catch rate:  100.00%  (168/168 = 156 blocked + 12 escalated to human)`
+`false-reject rate:  0.00%  (0/36 controls wrongly blocked)`
 
-NARRATION: "And I measure it. This is a 120-case seeded-error corpus, built with real accounting knowledge, including semantic errors a balance check cannot see: wrong amount, wrong account. Of the forty entries the gate approved, zero were wrong. I report that honestly as a Rule-of-Three confidence bound, at or below seven-and-a-half percent at ninety-five percent confidence. It caught all eighty seeded errors, and, as a negative control, it wrongly blocked zero of forty clean entries. No close vendor I found publishes a number like this on the write side."
+NARRATION: "And I measure it. This offline run is a 204-case synthetic stress-test, built with real accounting knowledge, including semantic errors a balance check cannot see: wrong amount, wrong account, a flipped debit and credit. Of the thirty-six entries the gate approved, zero were wrong, and I report that honestly with a ninety-five-percent confidence bound at or below eight point three percent. It handled all one hundred sixty-eight seeded errors, blocking most and escalating the large ones to a human, and it wrongly blocked zero clean entries. The live run swaps in the real Qwen model and measures the same number on what the model actually produced. No close vendor I found publishes a number like this on the write side."
 
 ---
 
 **[2:05 - 2:38] Architecture**
 
-ON SCREEN: Switch to `docs/architecture.svg` (or the ARCHITECTURE.md ASCII diagram). Trace the flow left to right with the cursor: unstructured inputs, qwen3-vl-plus ingestion, qwen3-max planner, the DETERMINISTIC GATE, HMAC token, Odoo write-back on ECS. Briefly show the "Gate check to control framework" table in the README (lines 98-104).
+ON SCREEN: Switch to `docs/architecture.svg` (or the ARCHITECTURE.md ASCII diagram). Trace the flow left to right with the cursor: unstructured inputs, qwen3-vl-plus ingestion, qwen3.7-max planner, the DETERMINISTIC GATE, HMAC token, Odoo write-back on ECS. Briefly show the "Gate check to control framework" table in the README (lines 98-104).
 
-NARRATION: "The generative layers run on Alibaba Cloud Model Studio: Qwen3-VL reads the documents, Qwen3-Max drafts the entry. The gate is pure, side-effect-free Python, so every verdict is reproducible and auditable. Each check maps to a named control: SOX 404 and COSO for reconciliation and segregation of duties, an approval matrix for the human-in-the-loop threshold. The write reaches an Odoo system of record on Alibaba Cloud ECS, through the Model Studio Responses API as an SSE MCP tool, so the same propose, validate, execute governance runs on the model side too."
+NARRATION: "The generative layers run on Alibaba Cloud Model Studio: Qwen3-VL reads the documents, Qwen3.7-Max drafts the entry. The gate is pure, side-effect-free Python, so every verdict is reproducible and auditable. Each check maps to a named control: SOX 404 and COSO for reconciliation and segregation of duties, an approval matrix for the human-in-the-loop threshold. The write reaches an Odoo system of record on Alibaba Cloud ECS, through the Model Studio Responses API as an SSE MCP tool, so the same propose, validate, execute governance runs on the model side too."
 
 ---
 
@@ -88,7 +88,7 @@ ON SCREEN:
 2. Run `python -m eval.harness --live`. When the report prints, rest on the header `[live: real Qwen planner, clean scenarios]` and the metrics block.
 3. Optional: quick cut to the Model Studio console API Keys page to prove the key is a Model Studio key.
 
-NARRATION: "The planner calls Qwen on Alibaba Cloud Model Studio, through the OpenAI-compatible endpoint. Running the harness in live mode sends the clean close tasks to qwen3-max on Model Studio, and every proposal the real model returns is scored by the same deterministic gate. This is the actual model plus gate pipeline, not a fixture."
+NARRATION: "The planner calls Qwen on Alibaba Cloud Model Studio, through the OpenAI-compatible endpoint. Running the harness in live mode sends the clean close tasks to qwen3.7-max on Model Studio, and every proposal the real model returns is scored by the same deterministic gate. This is the actual model plus gate pipeline, not a fixture."
 
 ---
 

@@ -33,7 +33,7 @@ from ledgerpilot.writeback import OdooWriteBack, WriteRefused, approve_and_commi
 DEMO_CONFIG = Config(
     dashscope_api_key="",
     dashscope_base_url="",
-    planner_model="qwen3-max",
+    planner_model="qwen3.7-max",
     vision_model="qwen3-vl-plus",
     signing_key="demo-signing-key-not-for-production",
     approval_threshold=Decimal("10000.00"),
