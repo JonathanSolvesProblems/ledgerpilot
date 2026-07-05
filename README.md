@@ -24,9 +24,16 @@ Two numbers, and I keep them separate on purpose.
 
 This measures the **gate's decision logic**, not a model. It is a stress-test: the clean controls are correct entries, so a 0% false-write here means the rules are sound, not that an LLM is accurate.
 
-**2. Measured LLM + gate** (`python -m eval.harness --live`, needs `DASHSCOPE_API_KEY`): the real Qwen planner drafts entries from natural-language close tasks, and the gate judges what the model actually produced. This is the number that reflects the real pipeline, reported with a confidence interval. (Pending a key; the harness is wired and one command produces it.)
+**2. Measured LLM + gate** (`python -m eval.harness --live`, needs `DASHSCOPE_API_KEY`): the real Qwen planner drafts entries from 39 natural-language close tasks, and the gate judges what the model actually produced. Measured on Alibaba Cloud Model Studio:
 
-The corpus includes *semantic* errors a balance check cannot catch (a balanced entry posted to the wrong account, wrong amount, flipped debit/credit, or off by a rounding cent). Those are caught by reconciling each proposal against the source document, which is the point.
+| Model | Model accuracy | Gate caught | False-write rate | Wilson 95% CI |
+|---|---|---|---|---|
+| **Qwen3.7-Max** (flagship) | **100%** (39/39) | (0 mistakes to catch) | **0%** | ≤ 8.97% |
+| qwen-flash (faster, weaker) | 89.7% (35/39) | 2 of 4 mistakes | 5.41% | ≤ 17.70% |
+
+The flagship was fully accurate and the gate wrote zero wrong entries. The metric is genuinely falsifiable, not zero by construction: on the weaker qwen-flash the gate caught the cross-class mistakes live (for example it rejected a COGS entry the model tried to post to accounts receivable and revenue), while two within-class account errors surfaced as a measured 5.41% false-write rate. That within-class residual is the gate's honestly disclosed limit (see Known limitations): it enforces account class and amount, not the choice between two accounts of the same class.
+
+The offline corpus includes *semantic* errors a balance check cannot catch (a balanced entry posted to the wrong account, wrong amount, flipped debit/credit, or off by a rounding cent). Those are caught by reconciling each proposal against the source document, which is the point.
 
 ---
 
@@ -141,7 +148,7 @@ echo "DASHSCOPE_API_KEY=sk-..." >> .env         # a workspace key from Model Stu
 python -m eval.harness --live                    # measured false-write rate + Wilson 95% CI
 ```
 
-`--live` feeds 16 natural-language close tasks (some deliberately easy to misclassify, e.g. prepaid vs expense, capitalize vs expense) to the real Qwen planner, then judges what the model produced. It reports the model's raw accuracy, how many of its mistakes the gate blocked, and the false-write rate on the entries the gate approved.
+`--live` feeds 39 natural-language close tasks (some deliberately easy to misclassify, e.g. prepaid vs expense, capitalize vs expense) to the real Qwen planner, then judges what the model produced. It reports the model's raw accuracy, how many of its mistakes the gate blocked, and the false-write rate on the entries the gate approved. Switch `LEDGERPILOT_PLANNER_MODEL` to compare models (the results above are `qwen3.7-max` and `qwen-flash`).
 
 ## Known limitations (honest scope)
 

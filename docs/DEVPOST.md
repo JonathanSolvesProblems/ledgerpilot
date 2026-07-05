@@ -63,7 +63,7 @@ unstructured inputs ──► Qwen perception ──► Qwen planner ──► D
 
 ## Measured result
 
-I report two numbers, kept separate on purpose. The offline synthetic gate stress-test runs a 204-case seeded-error corpus (12 scenarios, 14 error classes) through the gate to prove the decision logic is sound. The measured live number (`--live`, needs a Model Studio key) runs the real Qwen planner and reports the false-write rate on what the model actually produced. I do not quote a vendor-style accuracy percentage.
+I report two numbers, kept separate on purpose. The offline synthetic gate stress-test runs a 204-case seeded-error corpus (12 scenarios, 14 error classes) through the gate to prove the decision logic is sound. The measured live number runs the real Qwen planner on 39 close tasks and reports the false-write rate on what the model actually produced. On Alibaba Cloud Model Studio, Qwen3.7-Max was 100% accurate and the gate wrote 0 wrong entries (Wilson 95% CI at most 8.97%). To prove the metric is not zero by construction, I also ran the faster qwen-flash: it made 4 mistakes, the gate caught the cross-class ones live (it rejected a cost-of-goods entry the model tried to post to accounts receivable and revenue), and 2 within-class account errors surfaced as a measured 5.41% false-write rate, which is the gate's honestly disclosed limit. I do not quote a vendor-style accuracy percentage.
 
 | Metric (offline synthetic stress-test) | Result |
 |---|---|
@@ -94,7 +94,8 @@ Anyone can prompt "build me an accounting agent." The defensible part is not the
 I want to be precise about what runs today versus what a production deployment would require.
 
 - **Working now, no credentials:** the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the 204-case offline synthetic stress-test, the demo, and the test suite. The offline harness uses an error-injection planner to stress every gate check against known ground truth, so the reported numbers are a gate stress-test on a synthetic, self-constructed corpus, not yet a production sensitivity study.
-- **Needs a key or cloud:** the `--live` Qwen path (`DASHSCOPE_API_KEY`), a live Odoo on Alibaba Cloud ECS for a real `account.move` write, and the SSE-MCP write path through the Model Studio Responses API.
+- **Done, with a Model Studio key:** the `--live` measurement against real Qwen output (Qwen3.7-Max and qwen-flash) on 39 close tasks, reported above.
+- **Needs cloud:** a live Odoo on Alibaba Cloud ECS for a real `account.move` write through the XML-RPC client or the SSE-MCP path on the Model Studio Responses API.
 - **To production this would need:** integration with a real ERP and its actual chart of accounts and period calendar, a prospective study measuring false-write rate against a gold-standard set of real closes, and proper key management for the signing key (it currently defaults to a development value).
 
 The thesis holds regardless of scale: the ledger is a system of record that must never be corrupted, so the generative model proposes and a deterministic, control-mapped gate is the only thing allowed to write.
