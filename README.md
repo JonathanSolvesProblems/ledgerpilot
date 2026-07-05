@@ -90,6 +90,7 @@ eval/
   stats.py             # Wilson score interval
 scripts/
   live_close.py        # end-to-end real close (record this on model access)
+webui.py               # builds web/index.html: a visual frontend over the real gate
 tests/                 # 53 tests: gate, reconciliation, tokens, pipeline, clients, live eval
 docs/
   architecture.svg     # system + Alibaba Cloud topology diagram
@@ -103,6 +104,7 @@ pip install -e .
 cp .env.example .env          # add DASHSCOPE_API_KEY (a signing key is generated for you)
 python -m eval.harness        # offline: 204-case synthetic stress-test, no key needed
 python demo.py                # end-to-end propose -> gate -> governed write, no key needed
+python webui.py && open web/index.html   # visual UI: watch the gate evaluate real entries
 pytest                        # 53 tests
 
 # with a Model Studio key in .env (auto-loaded):
