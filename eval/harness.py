@@ -16,7 +16,7 @@ By default the offline ScriptedPlanner injects documented failure modes so the
 gate is stress-tested at scale with no API key. With --live it calls the real
 Qwen planner on the clean scenarios and measures the actual model + gate pipeline.
 
-Run:  python -m eval.harness            (offline, deterministic, 120 cases)
+Run:  python -m eval.harness            (offline, deterministic, 204 cases)
       python -m eval.harness --live     (real Qwen planner on clean scenarios)
 """
 

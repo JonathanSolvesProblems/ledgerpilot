@@ -65,17 +65,19 @@ Pure, side-effect-free rules. Each check is independently testable and produces 
 
 Status column is explicit so nothing reads as provisioned when it is not.
 
-| Component | Alibaba Cloud service | Status |
-|---|---|---|
-| Qwen models (planner `qwen3.7-max`, vision `qwen3-vl-plus`) | **Model Studio / DashScope** (OpenAI-compatible + Responses API for MCP) | Coded; live on API key |
-| Odoo ERP (system of record) | **ECS** (Elastic Compute Service) | Coded (`odoo_client.py`); live on ECS provision |
-| Document store (statements, invoices) | **OSS** (Object Storage Service) | Planned |
-| Orchestration / agent runtime | **Function Compute** | Planned |
-| Agent memory, approval tokens, audit log | **Tablestore** | Planned |
-| Accounting-policy retrieval (vector) | **AnalyticDB for PostgreSQL** | Planned |
-| Public entrypoint | **API Gateway** | Planned |
+Status column is explicit so nothing reads as provisioned when it is not.
 
-"Coded" means the calling code exists and is unit-tested against a fake transport; it runs live the moment credentials/host exist. "Planned" means designed into the topology but not yet wired. The designated **Proof of Alibaba Cloud Deployment** code files are `ledgerpilot/planner.py` (Qwen via Model Studio) and `ledgerpilot/odoo_client.py` (Odoo-on-ECS write + Responses-API MCP path); `ledgerpilot/config.py` wires region/endpoints.
+| Component | Service | Status |
+|---|---|---|
+| Qwen models (planner `qwen3.7-max`, vision `qwen3-vl-plus`) | **Alibaba Cloud Model Studio / DashScope** (OpenAI-compatible + Responses API for MCP) | **Live** (measured, `docs/live_run.txt`) |
+| Odoo ERP (system of record) | **Live Odoo 19** (demonstrated on odoo.sh; ECS is a production option) | **Live** (real posted `account.move`, `docs/real_write_proof.txt`) |
+| Document store (statements, invoices) | Alibaba Cloud OSS | Planned |
+| Orchestration / agent runtime | Alibaba Cloud Function Compute | Planned |
+| Agent memory, approval tokens, audit log | Alibaba Cloud Tablestore | Planned |
+| Accounting-policy retrieval (vector) | AnalyticDB for PostgreSQL | Planned |
+| Public entrypoint | Alibaba Cloud API Gateway | Planned |
+
+The AI backend runs on **Alibaba Cloud Model Studio** (the deployment proof; `ledgerpilot/planner.py`). The ERP write-back is demonstrated against a **live Odoo 19** (odoo.sh); `ledgerpilot/odoo_client.py` posts the real `account.move`. "Planned" services are designed into the topology but not yet wired.
 
 ## The measurement layer (the moat)
 
@@ -87,8 +89,8 @@ Status column is explicit so nothing reads as provisioned when it is not.
 - **False-reject rate (negative control):** **0% (0/36)**.
 This measures the gate's *decision logic*, not a model's accuracy.
 
-**Measured LLM + gate** (`python -m eval.harness --live`): the real Qwen planner (with function calling) drafts entries from 39 natural-language tasks and the gate judges what the model produced. This run is done and its raw transcript is committed at `docs/live_run.txt`. The gate caught every mistake either model made and wrote 0 wrong entries: Qwen3.7-Max was 97.4% accurate (1 mistake, caught; Wilson 95% CI at most 9.18%) and qwen-flash 87.2% (5 mistakes, all caught; at most 10.15%). The mistakes were cross-class postings; a within-class account error would surface as a nonzero rate, so the metric is falsifiable, not zero by construction.
+**Measured LLM + gate** (`python -m eval.harness --live`): the real Qwen planner (with function calling) drafts entries from 39 natural-language tasks and the gate judges what the model produced. This run is done and its raw transcript is committed at `docs/live_run.txt`. The gate caught every mistake either model made and wrote 0 wrong entries: Qwen3.7-Max was 97.4% accurate (1 mistake, caught; Wilson 95% CI at most 9.18%) and qwen-flash 87.2% (5 mistakes, all caught; at most 10.15%). The mistakes fell outside each document's permitted account set; a permitted-but-wrong posting would surface as a nonzero rate, so the metric is falsifiable, not zero by construction.
 
 ## Deployment status (honest scope)
 
-Working without credentials: the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the offline pipeline, the demo, and the test suite. Done with a Model Studio key: the `--live` measurement against real Qwen output (transcript in `docs/live_run.txt`). Still pending: a live Odoo on Alibaba Cloud ECS for one real `account.move` write. The designated **Proof of Alibaba Cloud Deployment** code file is `ledgerpilot/planner.py` (the function-calling Model Studio calls); `ledgerpilot/odoo_client.py` and `ledgerpilot/config.py` support it.
+Working without credentials: the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the offline pipeline, the demo, and the test suite. Done with a Model Studio key: the `--live` measurement against real Qwen output (transcript in `docs/live_run.txt`). Done against a live ERP: one real governed write, a posted `account.move` (`MISC/2026/06/0001`) to a live Odoo 19 (`docs/real_write_proof.txt`, `scripts/real_odoo_write.py`). The designated **Proof of Alibaba Cloud Deployment** code file is `ledgerpilot/planner.py` (the function-calling Model Studio calls); `ledgerpilot/odoo_client.py` and `ledgerpilot/config.py` support it.

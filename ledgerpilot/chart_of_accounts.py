@@ -53,7 +53,7 @@ class LedgerState:
     """Snapshot of the system-of-record state the gate validates against."""
 
     periods: list[Period] = field(default_factory=list)
-    # Authorized approvers and their per-entry approval limit.
+    # Authorized approvers, mapped to their role.
     approvers: dict[str, str] = field(default_factory=dict)  # user -> role
 
     def period_for(self, d: date) -> Period | None:

@@ -49,9 +49,9 @@ NARRATION: "And I measure it. This offline run is a 204-case synthetic stress-te
 
 **[2:05 - 2:38] Architecture**
 
-ON SCREEN: Switch to `docs/architecture.svg` (or the ARCHITECTURE.md ASCII diagram). Trace the flow left to right with the cursor: unstructured inputs, qwen3-vl-plus ingestion, qwen3.7-max planner, the DETERMINISTIC GATE, HMAC token, Odoo write-back on ECS. Briefly show the "Gate check to control framework" table in the README (lines 98-104).
+ON SCREEN: Switch to `docs/architecture.png` (or the ARCHITECTURE.md ASCII diagram). Trace the flow left to right with the cursor: unstructured inputs, qwen3-vl-plus ingestion, qwen3.7-max planner, the DETERMINISTIC GATE, HMAC token, Odoo write-back. Briefly show the "Gate check to control framework" table in the README.
 
-NARRATION: "The generative layers run on Alibaba Cloud Model Studio: Qwen3-VL reads the documents, Qwen3.7-Max drafts the entry. The gate is pure, side-effect-free Python, so every verdict is reproducible and auditable. Each check maps to a named control: SOX 404 and COSO for reconciliation and segregation of duties, an approval matrix for the human-in-the-loop threshold. The write reaches an Odoo system of record on Alibaba Cloud ECS, through the Model Studio Responses API as an SSE MCP tool, so the same propose, validate, execute governance runs on the model side too."
+NARRATION: "The generative layers run on Alibaba Cloud Model Studio: Qwen3-VL reads the documents, Qwen3.7-Max drafts the entry. The gate is pure, side-effect-free Python, so every verdict is reproducible and auditable. Each check maps to a named control: SOX 404 and COSO for reconciliation and segregation of duties, an approval matrix for the human-in-the-loop threshold. The write reaches a real Odoo system of record over XML-RPC, or through the Model Studio Responses API as an SSE MCP tool, so the same governance runs on the model side too."
 
 ---
 
@@ -65,50 +65,50 @@ NARRATION: "That is the claim: the only close agent that publishes a measured fa
 
 # SCRIPT 2: Proof of Alibaba Cloud Deployment (target 0:55, separate from the demo)
 
-Purpose: satisfy the hackathon's separate proof requirement by showing the backend live on Alibaba Cloud. Three beats: ECS Odoo, a Model Studio call, and the proof code file. No narration polish needed, a plain screen-capture voiceover is fine.
+Purpose: satisfy the hackathon's separate proof requirement by showing the backend live on Alibaba Cloud (the Qwen call on Model Studio), plus the bonus of a real write to a live Odoo. Three beats: the Model Studio call, the real posted Odoo entry, and the proof code file. A plain screen-capture voiceover is fine.
 
-Prerequisites before recording (see caveat at the end): the ECS Odoo instance is running, `.env` has a real `DASHSCOPE_API_KEY`, and `ODOO_URL/ODOO_DB/ODOO_USERNAME/ODOO_API_KEY` point at the ECS host.
-
----
-
-**[0:00 - 0:18] Beat 1: Odoo backend on Alibaba Cloud ECS**
-
-ON SCREEN:
-1. Alibaba Cloud console, Elastic Compute Service, Instances list. Region selector shows Singapore (ap-southeast-1). One instance is Running. Hover so the instance ID and public IP are visible.
-2. Cut to a browser at `http://<ecs-public-ip>:8069`, showing the Odoo Accounting workspace logged in (Journal Entries list visible).
-
-NARRATION: "The system of record is a live Odoo instance running on Alibaba Cloud ECS, in Singapore. This is that instance in the ECS console, and this is its Odoo accounting workspace on the instance's public address. Every governed write lands here as an account.move."
+Prerequisites: `.env` already has the Model Studio `DASHSCOPE_API_KEY` and the `ODOO_*` connection to the live Odoo. Both are set.
 
 ---
 
-**[0:18 - 0:38] Beat 2: the Model Studio call**
+**[0:00 - 0:22] Beat 1: the live Qwen call on Alibaba Cloud Model Studio**
 
 ON SCREEN:
-1. Terminal. Show one line of `.env`: `DASHSCOPE_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1`.
-2. Run `python -m eval.harness --live`. When the report prints, rest on the header `[live: real Qwen planner, clean scenarios]` and the metrics block.
-3. Optional: quick cut to the Model Studio console API Keys page to prove the key is a Model Studio key.
+1. Terminal. Show the `.env` base URL line pointing at the Model Studio endpoint (`...maas.aliyuncs.com/compatible-mode/v1`).
+2. Run `python -m eval.harness --live`. Rest on the header "LedgerPilot - MEASURED live evaluation (real Qwen planner + gate)" and the metrics (Qwen3.7-Max 97.4%, its one mistake caught, 0 false writes).
+3. Optional: quick cut to the Model Studio console API Keys page.
 
-NARRATION: "The planner calls Qwen on Alibaba Cloud Model Studio, through the OpenAI-compatible endpoint. Running the harness in live mode sends the clean close tasks to qwen3.7-max on Model Studio, and every proposal the real model returns is scored by the same deterministic gate. This is the actual model plus gate pipeline, not a fixture."
+NARRATION: "The backend runs on Alibaba Cloud Model Studio. In live mode the harness sends real close tasks to qwen3.7-max, the planner uses function calling to look up accounts, and every proposal is scored by the deterministic gate. This is the real model-plus-gate pipeline, on Alibaba Cloud, not a fixture."
 
 ---
 
-**[0:38 - 0:55] Beat 3: the proof code file**
+**[0:22 - 0:42] Beat 2: a real posted entry in a live Odoo**
 
 ON SCREEN:
-1. Open `ledgerpilot/writeback.py`. Scroll to the module docstring (lines 13-14): "This file is the designated 'Proof of Alibaba Cloud Deployment' artifact: it contains the calls that reach the Odoo instance running on Alibaba Cloud ECS." Then scroll to `_write_to_odoo` (the `create_move` payload).
-2. Cut to `ledgerpilot/odoo_client.py`. Show `XmlrpcOdooClient.create_move` (the `execute_kw` XML-RPC call to `account.move`), then `ModelStudioMcpClient.create_move` (the `client.responses.create(model=..., tools=[{"type":"mcp","server_label":"odoo",...}])` Responses-API MCP call).
+1. Run `python scripts/real_odoo_write.py`. Rest on the output: `write status: written` and `posted move: MISC/2026/06/0001 ... state 'posted'`.
+2. Cut to the Odoo web app (Accounting > Journal Entries), open `MISC/2026/06/0001`, showing Dr 6100 Rent 4,500.00 / Cr 1000 Cash 4,500.00, posted.
 
-NARRATION: "And this is the code that talks to Alibaba Cloud. planner.py is the linked proof file: it calls Qwen on Model Studio with function calling. odoo_client.py writes the account.move to the ECS-hosted Odoo over XML-RPC, or routes the same write through the Odoo MCP server on the Model Studio Responses API. Same governance on both sides, running on Alibaba Cloud."
+NARRATION: "And it is not just a demo. The same gated path posts a real journal entry to a live Odoo 19: the gate approves, signs a token, and the client creates and posts this account.move. Here it is in the ledger, posted. Re-running returns the same entry instead of double-posting."
+
+---
+
+**[0:42 - 0:55] Beat 3: the proof code file**
+
+ON SCREEN:
+1. Open `ledgerpilot/planner.py`. Show the `ALIBABA CLOUD DEPLOYMENT PROOF` header comment and the function-calling loop calling Model Studio.
+2. Cut to `ledgerpilot/odoo_client.py`: `XmlrpcOdooClient.create_move` (the XML-RPC `execute_kw` that creates and posts `account.move`) and `ModelStudioMcpClient` (the Responses-API MCP path).
+
+NARRATION: "The linked proof file is planner.py, which calls Qwen on Model Studio with function calling. odoo_client.py posts the account.move to the live Odoo over XML-RPC, or routes the same write through the Odoo MCP server on Model Studio's Responses API."
 
 ---
 
 ## Notes for recording (read before shooting)
 
-The demo opens on the semantic save: `SCENE 1` in `demo.py` proposes a balanced entry with real, postable accounts that posts the June rent (INV-RENT-06) to the wrong account, and the gate refuses it. Reconciliation runs on the exact path that writes to the ledger (`approve_and_commit` and `OdooWriteBack.commit` pass the source document into `gate.evaluate`), so this is the true behavior on camera, not a staged one. The full suite passes.
+The demo opens on the semantic save: the "Wrong account (the save)" tab in the web UI (`python webui.py`, open `web/index.html`), or `SCENE 1` in `demo.py`, proposes a balanced entry posted to the wrong account, and the gate refuses it. Reconciliation runs on the exact path that writes to the ledger, so this is the true behavior on camera, not staged. The full suite passes.
 
 Caveats:
-- Script 1 is fully recordable right now, offline, with no key (demo.py and the harness both run locally). The `[0:38-1:22]` and `[1:22-2:05]` segments are the exact outputs I captured above.
-- Script 2 requires provisioning that the repo's own honest-scope section lists as pending: a running ECS Odoo instance and a real `DASHSCOPE_API_KEY`. Record Script 2 only after those exist. If the ECS instance is not ready by the deadline, the honest fallback is to show the Model Studio call (Beat 2, which needs only the key) plus the two proof code files (Beat 3), and show the ECS console instance page for Beat 1, rather than staging a fake Odoo.
-- Host on YouTube or Vimeo (both appear on both versions of the rules; avoid Youku-only or Facebook-only), set PUBLIC. Keep the demo strictly under 3:00; judges are not required to watch past it.
-- Deployment proof: submit BOTH a code-file link (planner.py) and a short separate recording of the backend on Alibaba Cloud (a clean take of `python -m eval.harness --live` hitting Model Studio works, no live Odoo needed).
+- Script 1 is fully recordable offline (the web UI, `demo.py`, and the offline harness need no key).
+- Script 2 needs the Model Studio key and the Odoo connection, both already in `.env`. Beat 1 (the Qwen call) is the required Alibaba Cloud proof; Beat 2 (the real posted Odoo entry) is the standout bonus.
+- Host on YouTube or Vimeo (both appear on both versions of the rules), set PUBLIC. Keep the demo strictly under 3:00; judges are not required to watch past it.
+- Deployment proof: submit BOTH a code-file link (`planner.py`) and this short separate recording of the live Qwen call on Model Studio.
 - I did not commit these changes. Commit them before you record so the repo shown in Script 2 matches the video.

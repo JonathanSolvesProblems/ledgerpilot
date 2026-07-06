@@ -1,0 +1,29 @@
+LedgerPilot -- proof of one real governed write to a live ERP
+=============================================================
+
+Target: a live Odoo 19 Enterprise instance on odoo.sh.
+Path:   the actual project code (scripts/real_odoo_write.py):
+        approve_and_commit -> gate.evaluate (approved) -> issue HMAC token ->
+        OdooWriteBack.commit -> XmlrpcOdooClient.create_move (create + action_post).
+Nothing is mocked; this creates and POSTS a real account.move.
+
+Reproduce (with ODOO_* set in .env to a live Odoo carrying LedgerPilot's chart):
+    python scripts/real_odoo_write.py
+
+--- Run output ---------------------------------------------------------------
+write status  : written
+odoo_move_id  : 1
+entry_hash    : fa8f270d01eeae64
+posted move   : [{'id': 1, 'name': 'MISC/2026/06/0001', 'state': 'posted',
+                  'ref': 'LP-RENT-2026-06', 'amount_total': 4500.0, 'date': '2026-06-20'}]
+
+--- Idempotency (re-run in a fresh process) ----------------------------------
+Re-running returns the same move (found via the content-hash embedded in the
+narration) instead of posting a second one:
+    write status  : written
+    odoo_move_id  : 1
+    posted move   : MISC/2026/06/0001 (state posted)
+    moves with ref LP-RENT-2026-06: 1   <- still one, no double-post
+
+The entry: Dr 6100 Rent expense 4,500.00 / Cr 1000 Cash 4,500.00, reconciled
+against invoice INV-RENT-06, posted to the Miscellaneous Operations journal.

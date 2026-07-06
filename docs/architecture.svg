@@ -92,7 +92,7 @@
   <text x="1195" y="292" text-anchor="middle" class="boxlabel">Odoo ERP</text>
   <text x="1195" y="314" text-anchor="middle" class="boxsub">account.move</text>
   <text x="1195" y="331" text-anchor="middle" class="boxsub">system of record</text>
-  <text x="1195" y="352" text-anchor="middle" class="boxsub">on ECS</text>
+  <text x="1195" y="352" text-anchor="middle" class="boxsub">live Odoo 19</text>
 
   <!-- Reject path -->
   <rect x="600" y="450" width="320" height="60" class="box" rx="10" stroke="#b91c1c"/>
@@ -127,8 +127,8 @@
     <text x="170" y="651" text-anchor="middle" class="boxsub">Qwen3 models · function calling · MCP</text>
 
     <rect x="300" y="610" width="150" height="52" class="cloudchip" rx="8"/>
-    <text x="375" y="634" text-anchor="middle" class="chip">ECS</text>
-    <text x="375" y="651" text-anchor="middle" class="boxsub">Odoo ERP host</text>
+    <text x="375" y="634" text-anchor="middle" class="chip">Odoo 19</text>
+    <text x="375" y="651" text-anchor="middle" class="boxsub">live ERP (odoo.sh) · real write</text>
 
     <rect x="470" y="610" width="180" height="52" class="cloudchip" rx="8"/>
     <text x="560" y="634" text-anchor="middle" class="chip">Function Compute</text>
@@ -150,6 +150,6 @@
     <text x="150" y="704" text-anchor="middle" class="chip">API Gateway</text>
 
     <rect x="260" y="676" width="940" height="46" fill="#fffbeb" stroke="#fde68a" rx="8"/>
-    <text x="270" y="704" class="boxsub" fill="#78350f">Proof of Alibaba Cloud Deployment artifact: ledgerpilot/writeback.py + ledgerpilot/odoo_client.py (Model Studio + Odoo-on-ECS calls) · config.py wires region/endpoints</text>
+    <text x="270" y="704" class="boxsub" fill="#78350f">Proof of Alibaba Cloud Deployment: ledgerpilot/planner.py (Qwen on Model Studio, function calling) · odoo_client.py posts a real account.move to a live Odoo 19</text>
   </g>
 </svg>

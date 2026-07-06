@@ -1,17 +1,15 @@
-"""Governed write-back to the Odoo system of record on Alibaba Cloud.
+"""Governed write-back to the Odoo system of record.
 
 This is the only module that mutates the ledger, and it refuses to do so unless:
   1. the gate APPROVED the entry, and
   2. a valid HMAC approval token authorizes this exact entry, and
-  3. the entry has not already been written (idempotency on content hash).
+  3. the entry has not already been written (in-run idempotency on content hash).
 
-It mirrors the propose -> validate -> execute pattern exposed by the Odoo MCP
-server (validate_write issues a checked plan; execute_approved_write commits it
-behind ODOO_MCP_ENABLE_WRITES + confirm=true). The same governance lives on both
-sides, so an approved write is auditable end to end.
-
-This file is the designated "Proof of Alibaba Cloud Deployment" artifact: it
-contains the calls that reach the Odoo instance running on Alibaba Cloud ECS.
+The write itself is delegated to an injected client (`ledgerpilot/odoo_client.py`),
+which is what actually reaches the Odoo instance. This module owns the governance,
+not the transport. The designated Proof of Alibaba Cloud Deployment code file is
+`ledgerpilot/planner.py` (the Qwen calls on Model Studio); `odoo_client.py` posts
+to a live Odoo (demonstrated on Odoo 19 / odoo.sh).
 """
 
 from __future__ import annotations
@@ -38,11 +36,11 @@ class WriteReceipt:
 
 
 class OdooWriteBack:
-    """Commits gate-approved entries to Odoo on Alibaba Cloud ECS.
+    """Commits gate-approved entries to a live Odoo.
 
     The Odoo client is injected so tests and the eval harness can run without a
     live ERP. In production it is an xmlrpc/jsonrpc client pointed at the
-    ECS-hosted Odoo, or a thin wrapper over the Odoo MCP write tools.
+    live Odoo, or a thin wrapper over the Odoo MCP write tools.
     """
 
     def __init__(
@@ -87,7 +85,7 @@ class OdooWriteBack:
                 detail="Entry already committed this run; skipped.",
             )
 
-        # 4. Commit to Odoo on Alibaba Cloud ECS.
+        # 4. Commit to the live Odoo.
         move_id = self._write_to_odoo(entry)
         self._written[h] = move_id
         return WriteReceipt(
@@ -107,7 +105,7 @@ class OdooWriteBack:
         if self.odoo is None:
             raise WriteRefused(
                 "No Odoo client configured. Set ODOO_* env vars or inject a client. "
-                "The Alibaba Cloud ECS Odoo instance is the write target."
+                "The live Odoo instance is the write target."
             )
         move_lines = [
             (

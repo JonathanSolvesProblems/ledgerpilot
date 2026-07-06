@@ -2,7 +2,7 @@
 
 Runs the REAL deterministic gate on a handful of close scenarios and bakes the
 actual results into a single `web/index.html`. Open that file in a browser: pick
-a scenario and watch the seven gate checks light up green or red, the decision
+a scenario and watch the eight gate checks light up green or red, the decision
 badge resolve, and the governed write-back happen. The results are not faked;
 they are this project's gate evaluating real entries.
 

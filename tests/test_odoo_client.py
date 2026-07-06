@@ -62,6 +62,7 @@ class FakeServerProxy:
     def __init__(self, url):
         self.url = url
         self.created = []
+        self.posted = []
 
     def authenticate(self, db, user, key, ctx):
         return 7  # a uid
@@ -70,12 +71,17 @@ class FakeServerProxy:
         if model == "account.account" and method == "search":
             code = args[0][0][2]
             return [int(code)]  # pretend the account id equals its code
+        if model == "account.journal" and method == "search":
+            return [1]  # a general journal
         if model == "account.move" and method == "search":
             # No existing move with this hash (first write).
             return []
         if model == "account.move" and method == "create":
             self.created.append(args[0])
             return 4242
+        if model == "account.move" and method == "action_post":
+            self.posted.append(args[0])
+            return True
         raise AssertionError(f"unexpected call {model}.{method}")
 
 
@@ -99,9 +105,12 @@ def test_xmlrpc_client_posts_a_move(monkeypatch):
     obj = proxies[-1]
     created = obj.created[0]
     assert created["ref"] == "JE-1"
+    assert created["move_type"] == "entry"       # a journal entry, not an invoice
+    assert created["journal_id"] == 1            # resolved general journal
     assert len(created["line_ids"]) == 2
     assert created["line_ids"][0][2]["account_id"] == 6100  # code resolved to id
     assert "ledgerpilot:abc123" in created["narration"]  # hash embedded for dedupe
+    assert obj.posted == [[4242]]                # the move was posted, not left draft
 
 
 class ExistingMoveProxy(FakeServerProxy):

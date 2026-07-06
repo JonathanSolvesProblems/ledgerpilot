@@ -83,7 +83,7 @@ def _open_periods_brief(state: LedgerState) -> str:
 
 def lookup_accounts(accounts: dict, keywords: str) -> str:
     """Tool implementation: return chart accounts matching the keywords."""
-    words = [w for w in keywords.lower().replace("/", " ").split() if len(w) > 2]
+    words = [w for w in keywords.lower().replace("/", " ").split() if len(w) >= 2]
 
     def to_row(a):
         return {"code": a.code, "name": a.name, "type": a.type.value, "postable": a.postable}
@@ -91,7 +91,7 @@ def lookup_accounts(accounts: dict, keywords: str) -> str:
     matched = [
         to_row(a)
         for a in accounts.values()
-        if not words or any(w in f"{a.name} {a.type.value}".lower() for w in words)
+        if not words or any(w in f"{a.code} {a.name} {a.type.value}".lower() for w in words)
     ]
     if not matched:  # never leave the model empty-handed
         matched = [to_row(a) for a in accounts.values() if a.postable]
@@ -190,7 +190,10 @@ class Planner:
                     ],
                 })
                 for tc in msg.tool_calls:
-                    args = json.loads(tc.function.arguments or "{}")
+                    try:
+                        args = json.loads(tc.function.arguments or "{}")
+                    except (json.JSONDecodeError, TypeError):
+                        args = {}
                     result = lookup_accounts(accounts, args.get("keywords", ""))
                     messages.append({
                         "role": "tool",
