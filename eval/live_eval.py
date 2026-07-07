@@ -72,16 +72,21 @@ class LiveMetrics:
         return self.model_errors_caught / self.model_errors if self.model_errors else 1.0
 
 
-def evaluate_live(planner, tasks: list[LiveTask] | None = None, state=None) -> tuple[LiveMetrics, list[dict]]:
+def evaluate_live(planner, tasks: list[LiveTask] | None = None, state=None,
+                  progress: bool = False) -> tuple[LiveMetrics, list[dict]]:
     tasks = tasks if tasks is not None else build_live_tasks()
     state = state or default_state(reference=date(2026, 6, 30))
     gate = Gate(state=state)
+    total = len(tasks)
+    if progress:
+        print(f"Sending {total} close tasks to the real Qwen planner "
+              f"(function calling, sequential). This takes a couple of minutes...\n", flush=True)
 
     rows: list[dict] = []
     errored = model_correct = approved = false_writes = 0
     model_errors = model_errors_caught = false_rejects = 0
 
-    for t in tasks:
+    for i, t in enumerate(tasks, 1):
         source = t.source()
         try:
             proposal = planner.propose(t.prompt, state)
@@ -89,11 +94,16 @@ def evaluate_live(planner, tasks: list[LiveTask] | None = None, state=None) -> t
         except Exception as exc:  # noqa: BLE001 - report, do not crash the run
             errored += 1
             rows.append({"task": t.name, "status": "planner_error", "detail": str(exc)[:160]})
+            if progress:
+                print(f"  [{i}/{total}] {t.name:<22} planner error", flush=True)
             continue
 
         result = gate.evaluate(entry, source)
         correct = _entry_matches(entry, t)
         wrote = result.decision == GateDecision.APPROVED
+        if progress:
+            mark = "correct" if correct else "WRONG  "
+            print(f"  [{i}/{total}] {t.name:<22} model:{mark}  gate:{result.decision.value}", flush=True)
 
         if correct:
             model_correct += 1

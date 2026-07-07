@@ -166,7 +166,7 @@ def main(argv: list[str] | None = None) -> None:
         from ledgerpilot.planner import Planner
 
         from .live_eval import evaluate_live, print_live_report
-        metrics, rows = evaluate_live(Planner())
+        metrics, rows = evaluate_live(Planner(), progress=True)
         print_live_report(metrics, rows)
         if metrics.errored == metrics.total and metrics.total:
             print("\nAll planner calls failed. If you see 403 'Access to model")

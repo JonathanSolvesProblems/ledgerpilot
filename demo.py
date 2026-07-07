@@ -46,7 +46,7 @@ DEMO_CONFIG = Config(
 
 
 class FakeOdoo:
-    """Stand-in for the Odoo instance on Alibaba Cloud ECS."""
+    """In-memory stand-in for the live Odoo (the real write is scripts/real_odoo_write.py)."""
 
     def __init__(self) -> None:
         self.moves: list[dict] = []
@@ -175,7 +175,7 @@ def main() -> None:
     print(f"  re-submit JE-301 -> {receipt2.status} (odoo_move_id={receipt2.odoo_move_id})")
 
     # --- summary ----------------------------------------------------------
-    banner("LEDGER STATE (Alibaba Cloud ECS Odoo, simulated)")
+    banner("LEDGER STATE (in-memory Odoo stand-in; the real write is scripts/real_odoo_write.py)")
     print(f"  total account.move records written: {len(odoo.moves)}")
     for m in odoo.moves:
         print(f"    - {m['ref']}: {m['narration']}  (hash {m['ledgerpilot_hash'][:12]}...)")
