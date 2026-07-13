@@ -1,0 +1,195 @@
+================================================================================
+ LedgerPilot: Proof of Alibaba Cloud Deployment
+ The backend below is RUNNING ON Alibaba Cloud ECS, not on a local machine.
+================================================================================
+generated (UTC) : 2026-07-13 10:15:28
+hostname        : ledgerpilot
+kernel          : Linux 6.8.0-124-generic
+python          : Python 3.12.3
+
+--- Alibaba Cloud ECS instance metadata service (http://100.100.100.200/latest/meta-data) ---
+  instance-id   : i-t4n1i5p7bz4ypj122e6q
+  region-id     : ap-southeast-1
+  zone-id       : ap-southeast-1a
+  instance-type : ecs.t6-c1m2.large
+  image-id      : ubuntu_24_04_x64_20G_alibase_20260615.vhd
+  public ipv4   : 47.84.116.56
+  private ipv4  : 172.21.58.166
+
+--- Alibaba Cloud services this backend calls ---
+  Model Studio  : https://ws-rlees7m82jvvd18x.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+  ECS OpenAPI   : scripts/deploy_ecs.py provisioned this instance
+
+================================================================================
+ 1. TEST SUITE (on ECS)
+================================================================================
+.....................................................                    [100%]
+53 passed in 0.42s
+
+================================================================================
+ 2. DETERMINISTIC GATE STRESS-TEST, 204 synthetic cases (on ECS)
+================================================================================
+cases: 204   handled correctly: 204
+--------------------------------------------------------------------------------
+correct controls:       36
+seeded errors:          168
+gate-approved writes:   36
+
+  FALSE-WRITE RATE:     0.00%  (0 wrong of 36 approved; <= 8.33% at 95% CI)
+  catch rate:           100.00%  (168/168 = 156 blocked + 12 escalated to human)
+  false-reject rate:    0.00%  (0/36 controls wrongly blocked)
+
+  NOTE: this is a SYNTHETIC gate stress-test (no LLM). It measures the
+  gate's decision logic against injected errors. The measured false-write
+  rate on real model output comes from:  python -m eval.harness --live
+================================================================================
+
+================================================================================
+ 3a. LIVE QWEN MEASUREMENT (on ECS -> Alibaba Cloud Model Studio)
+     Flagship model. 39 natural-language close tasks. The planner uses
+     function calling to look up account codes; the deterministic gate
+     judges what it produced.
+================================================================================
+model: qwen3.7-max
+LedgerPilot - MEASURED live evaluation (real Qwen planner + gate)
+================================================================================
+  rent                   model:correct  gate:approved    approved
+  utilities              model:correct  gate:approved    approved
+  salaries               model:correct  gate:approved    approved
+  bank_fee               model:correct  gate:approved    approved
+  software               model:correct  gate:approved    approved
+  cogs                   model:correct  gate:approved    approved
+  accrued_payroll        model:correct  gate:approved    approved
+  utilities_accrual      model:correct  gate:approved    approved
+  prepaid_insurance      model:correct  gate:approved    approved
+  rent_prepaid_trap      model:correct  gate:approved    approved
+  equipment              model:correct  gate:approved    approved
+  service_revenue        model:correct  gate:approved    approved
+  interest_income        model:correct  gate:approved    approved
+  vat_settlement         model:correct  gate:approved    approved
+  ap_payment             model:correct  gate:approved    approved
+  ar_collection          model:correct  gate:approved    approved
+  cash_sale              model:correct  gate:approved    approved
+  service_cash           model:correct  gate:approved    approved
+  rent_on_credit         model:correct  gate:approved    approved
+  utilities_on_credit    model:correct  gate:approved    approved
+  software_on_credit     model:WRONG    gate:rejected    Does not reconcile to software_on_credit: debit accounts ['1200'] not permitted for invoice (allowed ['5000', '6000', '6100', '6200', '6300', '6900']).
+  cogs_cash              model:correct  gate:approved    approved
+  wire_fee               model:correct  gate:approved    approved
+  prepaid_rent_quarter   model:correct  gate:approved    approved
+  equipment_cash         model:correct  gate:approved    approved
+  ar_collection_2        model:correct  gate:approved    approved
+  ap_payment_2           model:correct  gate:approved    approved
+  vat_payment_2          model:correct  gate:approved    approved
+  interest_income_2      model:correct  gate:approved    approved
+  accrue_utilities_2     model:correct  gate:approved    approved
+  accrue_rent            model:correct  gate:approved    approved
+  prepaid_insurance_2    model:correct  gate:approved    approved
+  dividend_paid          model:correct  gate:approved    approved
+  share_issue            model:correct  gate:approved    approved
+  salaries_cash          model:correct  gate:approved    approved
+  saas_cash              model:correct  gate:approved    approved
+  cogs_on_credit_2       model:correct  gate:approved    approved
+  utilities_cash_2       model:correct  gate:approved    approved
+  bank_fee_monthly       model:correct  gate:approved    approved
+--------------------------------------------------------------------------------
+tasks scored:            39 (0 planner errors)
+model accuracy:          97.4%  (38/39 posted correctly by the model)
+model mistakes caught:   100.0%  (1/1 wrong proposals blocked)
+MEASURED FALSE-WRITE:    0.00%  (0 wrong of 38 approved; <= 9.18% at 95% CI, Wilson)
+  (a false write here is a within-policy account error the gate cannot
+   disambiguate; cross-class errors and amount errors are all blocked.)
+false-reject rate:       0.00%  (0 correct entries wrongly blocked)
+================================================================================
+
+================================================================================
+ 3b. SAME MEASUREMENT ON A WEAKER MODEL (qwen-flash), on ECS
+     The point of the gate is that it does not depend on the model being
+     right. A cheaper model makes more mistakes; the gate must still let
+     nothing wrong through.
+================================================================================
+model: qwen-flash
+LedgerPilot - MEASURED live evaluation (real Qwen planner + gate)
+================================================================================
+  rent                   model:correct  gate:approved    approved
+  utilities              model:WRONG    gate:rejected    Does not reconcile to utilities: credit accounts ['1100'] not permitted for invoice (allowed ['1000', '2000']).
+  salaries               model:WRONG    gate:rejected    Does not reconcile to salaries: credit accounts ['1100'] not permitted for invoice (allowed ['1000', '2100']).
+  bank_fee               model:correct  gate:approved    approved
+  software               model:correct  gate:approved    approved
+  cogs                   model:correct  gate:approved    approved
+  accrued_payroll        model:correct  gate:approved    approved
+  utilities_accrual      model:correct  gate:approved    approved
+  prepaid_insurance      model:correct  gate:approved    approved
+  rent_prepaid_trap      model:WRONG    gate:rejected    Does not reconcile to rent_prepaid_trap: credit accounts ['1100'] not permitted for invoice (allowed ['1000']).
+  equipment              model:correct  gate:approved    approved
+  service_revenue        model:correct  gate:approved    approved
+  interest_income        model:correct  gate:approved    approved
+  vat_settlement         model:correct  gate:approved    approved
+  ap_payment             model:correct  gate:approved    approved
+  ar_collection          model:correct  gate:approved    approved
+  cash_sale              model:correct  gate:approved    approved
+  service_cash           model:correct  gate:approved    approved
+  rent_on_credit         model:correct  gate:approved    approved
+  utilities_on_credit    model:correct  gate:approved    approved
+  software_on_credit     model:correct  gate:approved    approved
+  cogs_cash              model:correct  gate:approved    approved
+  wire_fee               model:correct  gate:approved    approved
+  prepaid_rent_quarter   model:correct  gate:approved    approved
+  equipment_cash         model:correct  gate:approved    approved
+  ar_collection_2        model:correct  gate:approved    approved
+  ap_payment_2           model:WRONG    gate:rejected    Does not reconcile to ap_payment_2: credit accounts ['1100'] not permitted for invoice (allowed ['1000']).
+  vat_payment_2          model:correct  gate:approved    approved
+  interest_income_2      model:correct  gate:approved    approved
+  accrue_utilities_2     model:correct  gate:approved    approved
+  accrue_rent            model:correct  gate:approved    approved
+  prepaid_insurance_2    model:correct  gate:approved    approved
+  dividend_paid          model:correct  gate:approved    approved
+  share_issue            model:correct  gate:approved    approved
+  salaries_cash          model:WRONG    gate:rejected    Does not reconcile to salaries_cash: credit accounts ['1100'] not permitted for invoice (allowed ['1000', '2100']).
+  saas_cash              model:correct  gate:approved    approved
+  cogs_on_credit_2       model:WRONG    gate:rejected    Does not reconcile to cogs_on_credit_2: debit accounts ['1100'] not permitted for invoice (allowed ['5000', '6000', '6100', '6200', '6300', '6900']); credit accounts ['4000'] not permitted for invoice (allowed ['2000', '1000']).
+  utilities_cash_2       model:WRONG    gate:rejected    Does not reconcile to utilities_cash_2: credit accounts ['1100'] not permitted for invoice (allowed ['1000', '2000']).
+  bank_fee_monthly       model:correct  gate:approved    approved
+--------------------------------------------------------------------------------
+tasks scored:            39 (0 planner errors)
+model accuracy:          82.1%  (32/39 posted correctly by the model)
+model mistakes caught:   100.0%  (7/7 wrong proposals blocked)
+MEASURED FALSE-WRITE:    0.00%  (0 wrong of 32 approved; <= 10.72% at 95% CI, Wilson)
+  (a false write here is a within-policy account error the gate cannot
+   disambiguate; cross-class errors and amount errors are all blocked.)
+false-reject rate:       0.00%  (0 correct entries wrongly blocked)
+================================================================================
+
+================================================================================
+ 4. REAL GOVERNED WRITE TO A LIVE ODOO ERP (on ECS)
+    gate -> HMAC approval token -> XML-RPC -> posted account.move
+================================================================================
+scenario      : utilities  (LP-UTIL-2026-06, 1280.00)
+running on    : ledgerpilot
+write status  : written
+odoo_move_id  : 2
+entry_hash    : eb8ad6c10b3e613c
+posted move   : [{'id': 2, 'name': 'MISC/2026/06/0002', 'state': 'posted', 'ref': 'LP-UTIL-2026-06', 'amount_total': 1280.0, 'date': '2026-06-24'}]
+
+--- idempotency: byte-identical re-run from this same instance ---
+scenario      : utilities  (LP-UTIL-2026-06, 1280.00)
+running on    : ledgerpilot
+write status  : written
+odoo_move_id  : 2
+entry_hash    : eb8ad6c10b3e613c
+posted move   : [{'id': 2, 'name': 'MISC/2026/06/0002', 'state': 'posted', 'ref': 'LP-UTIL-2026-06', 'amount_total': 1280.0, 'date': '2026-06-24'}]
+
+--- independent check: how many moves actually exist with that ref? ---
+  moves with ref LP-RENT-2026-06: 1   (1 = no double-post)
+  moves with ref LP-UTIL-2026-06: 1   (1 = no double-post)
+  total journal entries in the live ledger: 2
+
+================================================================================
+ 5. WEB UI SERVED FROM THIS INSTANCE
+================================================================================
+  http://127.0.0.1/ -> HTTP 200, 13962 bytes
+  public URL    : http://47.84.116.56/
+
+================================================================================
+ END OF PROOF
+================================================================================

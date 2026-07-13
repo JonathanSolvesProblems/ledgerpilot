@@ -17,6 +17,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+# Only needed to provision the Alibaba Cloud ECS box (scripts/deploy_ecs.py).
+# The agent itself does not need these at runtime.
+deploy = [
+    "alibabacloud_ecs20140526>=5.0",
+    "alibabacloud_vpc20160428>=6.0",
+]
 
 [tool.setuptools.packages.find]
 include = ["ledgerpilot*", "eval*"]

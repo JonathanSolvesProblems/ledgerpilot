@@ -59,46 +59,56 @@ NARRATION: "The generative layers run on Alibaba Cloud Model Studio: Qwen3-VL re
 
 ON SCREEN: Uniqueness-claim card (README line 5, trimmed): "The only close agent that publishes a measured false-write rate, with a confidence bound, on a seeded-error corpus, backed by a deterministic reconciliation check that catches balanced-but-wrong entries a trial balance never will." Below it: "Track 4: Autopilot Agent" and the repo URL with the Apache-2.0 badge.
 
-NARRATION: "That is the claim: the only close agent that publishes a measured false-write rate, backed by a deterministic check that catches the balanced-but-wrong entries a trial balance never will. The gate, the corpus, and the metric run today with no key. Live Qwen and a real ECS write are wired and one credential away. LedgerPilot: the model proposes, the gate decides."
+NARRATION: "That is the claim: the only close agent that publishes a measured false-write rate, backed by a deterministic check that catches the balanced-but-wrong entries a trial balance never will. It runs on Alibaba Cloud, it writes to a real ERP, and eight model mistakes in, nothing wrong has ever reached the ledger. LedgerPilot: the model proposes, the gate decides."
 
 ---
 
-# SCRIPT 2: Proof of Alibaba Cloud Deployment (target 0:55, separate from the demo)
+# SCRIPT 2: Proof of Alibaba Cloud Deployment (target 1:05, separate from the demo)
 
-Purpose: satisfy the hackathon's separate proof requirement by showing the backend live on Alibaba Cloud (the Qwen call on Model Studio), plus the bonus of a real write to a live Odoo. Three beats: the Model Studio call, the real posted Odoo entry, and the proof code file. A plain screen-capture voiceover is fine.
+Purpose: satisfy the hackathon's separate proof requirement by showing the backend **running on Alibaba Cloud**, not merely calling it. Four beats: prove we are on an ECS box, run the live Qwen measurement there, post a real ERP entry from there, and show the proof code files. A plain screen-capture voiceover is fine.
 
-Prerequisites: `.env` already has the Model Studio `DASHSCOPE_API_KEY` and the `ODOO_*` connection to the live Odoo. Both are set.
+Prerequisites: the ECS instance is up (`python scripts/deploy_ecs.py` prints the IP) and `/opt/ledgerpilot/.env` on the box holds the Model Studio key and the Odoo connection. Both are set.
 
 ---
 
-**[0:00 - 0:22] Beat 1: the live Qwen call on Alibaba Cloud Model Studio**
+**[0:00 - 0:18] Beat 1: we are on an Alibaba Cloud ECS instance**
 
 ON SCREEN:
-1. Terminal. Show the `.env` base URL line pointing at the Model Studio endpoint (`...maas.aliyuncs.com/compatible-mode/v1`).
-2. Run `python -m eval.harness --live`. Rest on the header "LedgerPilot - MEASURED live evaluation (real Qwen planner + gate)" and the metrics (Qwen3.7-Max 97.4%, its one mistake caught, 0 false writes).
-3. Optional: quick cut to the Model Studio console API Keys page.
+1. Terminal: `ssh -i ~/.ssh/ledgerpilot_ecs root@47.84.116.56`. The prompt becomes `root@ledgerpilot`.
+2. Run `curl http://100.100.100.200/latest/meta-data/instance-id` then `.../region-id`. It prints `i-t4n1i5p7bz4ypj122e6q` and `ap-southeast-1`.
 
-NARRATION: "The backend runs on Alibaba Cloud Model Studio. In live mode the harness sends real close tasks to qwen3.7-max, the planner uses function calling to look up accounts, and every proposal is scored by the deterministic gate. This is the real model-plus-gate pipeline, on Alibaba Cloud, not a fixture."
-
----
-
-**[0:22 - 0:42] Beat 2: a real posted entry in a live Odoo**
-
-ON SCREEN:
-1. Run `python scripts/real_odoo_write.py`. Rest on the output: `write status: written` and `posted move: MISC/2026/06/0001 ... state 'posted'`.
-2. Cut to the Odoo web app (Accounting > Journal Entries), open `MISC/2026/06/0001`, showing Dr 6100 Rent 4,500.00 / Cr 1000 Cash 4,500.00, posted.
-
-NARRATION: "And it is not just a demo. The same gated path posts a real journal entry to a live Odoo 19: the gate approves, signs a token, and the client creates and posts this account.move. Here it is in the ledger, posted. Re-running returns the same entry instead of double-posting."
+NARRATION: "This is not my laptop. That is Alibaba Cloud's instance metadata service, which only answers from inside a real ECS instance, and it is telling us the instance ID and region. The LedgerPilot backend runs here."
 
 ---
 
-**[0:42 - 0:55] Beat 3: the proof code file**
+**[0:18 - 0:40] Beat 2: the live Qwen call, from the cloud box**
 
 ON SCREEN:
-1. Open `ledgerpilot/planner.py`. Show the `ALIBABA CLOUD DEPLOYMENT PROOF` header comment and the function-calling loop calling Model Studio.
-2. Cut to `ledgerpilot/odoo_client.py`: `XmlrpcOdooClient.create_move` (the XML-RPC `execute_kw` that creates and posts `account.move`) and `ModelStudioMcpClient` (the Responses-API MCP path).
+1. Still on the ECS box: `.venv/bin/python -m eval.harness --live`. Rest on "MEASURED live evaluation", the per-task lines, and the metrics (97.4%, its one mistake caught, 0 false writes).
+2. Optional: quick cut to the Model Studio console.
 
-NARRATION: "The linked proof file is planner.py, which calls Qwen on Model Studio with function calling. odoo_client.py posts the account.move to the live Odoo over XML-RPC, or routes the same write through the Odoo MCP server on Model Studio's Responses API."
+NARRATION: "From that instance, the harness sends real close tasks to qwen3.7-max on Alibaba Cloud Model Studio, in the same region. The planner uses function calling to look up accounts, and every proposal is scored by the deterministic gate. Real model, real gate, running on Alibaba Cloud."
+
+---
+
+**[0:40 - 0:58] Beat 3: a real posted entry in a live Odoo, written from the cloud box**
+
+ON SCREEN:
+1. Run `.venv/bin/python scripts/real_odoo_write.py --scenario utilities`. Rest on `write status: written` and `posted move: MISC/2026/06/0002 ... state 'posted'`.
+2. Cut to the Odoo web app (Accounting > Journal Entries), open `MISC/2026/06/0002`: Dr 6200 Utilities 1,280.00 / Cr 1000 Cash 1,280.00, posted.
+
+NARRATION: "And it writes. The same gated path posts a real journal entry to a live Odoo 19 from this cloud instance: the gate approves, signs a token, and the client creates and posts this account.move. Here it is in the ledger. Re-running returns the same entry instead of double-posting."
+
+---
+
+**[0:58 - 1:05] Beat 4: the proof code files**
+
+ON SCREEN:
+1. Open `scripts/deploy_ecs.py`: the `ALIBABA CLOUD DEPLOYMENT PROOF` header and the `run_instances` / `create_security_group` calls.
+2. Cut to `ledgerpilot/planner.py`: the same header and the function-calling loop against Model Studio.
+3. Finish in a browser at `http://47.84.116.56/`, URL bar visible, clicking one gate scenario.
+
+NARRATION: "Two code files, two Alibaba Cloud services: deploy_ecs.py calls the ECS and VPC APIs that built this server, and planner.py calls Qwen on Model Studio. And the gate's UI is served straight off the instance."
 
 ---
 
@@ -107,8 +117,9 @@ NARRATION: "The linked proof file is planner.py, which calls Qwen on Model Studi
 The demo opens on the semantic save: the "Wrong account (the save)" tab in the web UI (`python webui.py`, open `web/index.html`), or `SCENE 1` in `demo.py`, proposes a balanced entry posted to the wrong account, and the gate refuses it. Reconciliation runs on the exact path that writes to the ledger, so this is the true behavior on camera, not staged. The full suite passes.
 
 Caveats:
-- Script 1 is fully recordable offline (the web UI, `demo.py`, and the offline harness need no key).
-- Script 2 needs the Model Studio key and the Odoo connection, both already in `.env`. Beat 1 (the Qwen call) is the required Alibaba Cloud proof; Beat 2 (the real posted Odoo entry) is the standout bonus.
+- Script 1 is fully recordable offline (the web UI, `demo.py`, and the offline harness need no key). Better: open the web UI at the live ECS URL so the address bar doubles as deployment proof.
+- Script 2 runs on the ECS instance. Beat 1 (the metadata service) is what proves the backend is *running on* Alibaba Cloud rather than merely calling it, which is the eligibility bar.
 - Host on YouTube or Vimeo (both appear on both versions of the rules), set PUBLIC. Keep the demo strictly under 3:00; judges are not required to watch past it.
-- Deployment proof: submit BOTH a code-file link (`planner.py`) and this short separate recording of the live Qwen call on Model Studio.
+- Deployment proof: submit the code-file link (`scripts/deploy_ecs.py`, and `ledgerpilot/planner.py` if a second is allowed), an ECS console screenshot showing the instance Running, and this short separate recording.
+- The ECS box bills by the hour. Record everything, then release it: `python scripts/deploy_ecs.py --destroy`.
 - I did not commit these changes. Commit them before you record so the repo shown in Script 2 matches the video.

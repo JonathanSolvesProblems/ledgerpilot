@@ -24,18 +24,33 @@ Two numbers, and I keep them separate on purpose.
 
 This measures the **gate's decision logic**, not a model. It is a stress-test: the clean controls are correct entries, so a 0% false-write here means the rules are sound, not that an LLM is accurate.
 
-**2. Measured LLM + gate** (`python -m eval.harness --live`, needs `DASHSCOPE_API_KEY`): the real Qwen planner drafts entries from 39 natural-language close tasks, and the gate judges what the model actually produced. Measured on Alibaba Cloud Model Studio:
+**2. Measured LLM + gate** (`python -m eval.harness --live`, needs `DASHSCOPE_API_KEY`): the real Qwen planner drafts entries from 39 natural-language close tasks, and the gate judges what the model actually produced. This run executed **on the Alibaba Cloud ECS instance**, calling Alibaba Cloud Model Studio in the same region:
 
 | Model | Model accuracy | Model mistakes caught | False-write rate | Wilson 95% CI |
 |---|---|---|---|---|
 | **Qwen3.7-Max** (flagship) | 97.4% (38/39) | **1 of 1** | **0%** | ≤ 9.18% |
-| qwen-flash (faster, weaker) | 87.2% (34/39) | **5 of 5** | **0%** | ≤ 10.15% |
+| qwen-flash (faster, weaker) | 82.1% (32/39) | **7 of 7** | **0%** | ≤ 10.72% |
 
-The gate caught every mistake either model made, six in total, and wrote zero wrong entries. The mistakes were cross-class postings the reconciliation check catches: the flagship booked a software invoice to a prepaid asset instead of an expense, and qwen-flash posted a cost-of-goods entry to accounts receivable and revenue. The raw transcript is committed at [docs/live_run.txt](docs/live_run.txt). The 0% is not zero by construction: the gate enforces each document's posting policy (the permitted account set) and the amount, not the choice among the accounts that policy permits, so a permitted-but-wrong posting would surface as a nonzero rate (see Known limitations); in this run every model error fell outside the permitted set and was caught.
+**The gate caught every mistake either model made, eight in total, and wrote zero wrong entries.** Most were cross-class postings that only reconciliation catches: settling an invoice by crediting accounts receivable instead of cash, or booking cost-of-goods to receivables and revenue. Each one balances, uses real accounts, and reads plausibly. A trial balance passes all of them.
+
+That is the whole argument for the gate: a weaker, cheaper model makes seven times as many mistakes, and the ledger is still clean. **Correctness comes from the gate, not from the model being right.**
+
+The raw transcript is committed at [docs/ecs_proof.txt](docs/ecs_proof.txt). The 0% is not zero by construction: the gate enforces each document's posting policy (the permitted account set) and the amount, not the choice among the accounts that policy permits, so a permitted-but-wrong posting would surface as a nonzero rate (see Known limitations); in this run every model error fell outside the permitted set and was caught.
+
+An earlier run from a local machine ([docs/live_run.txt](docs/live_run.txt)) gave slightly different accuracy (97.4% and 87.2%), because model sampling is not perfectly reproducible even at temperature 0. What was identical in both runs is the part that matters: **every model mistake was caught and nothing wrong was approved.**
 
 The offline corpus includes *semantic* errors a balance check cannot catch (a balanced entry posted to the wrong account, wrong amount, flipped debit/credit, or off by a rounding cent). Those are caught by reconciling each proposal against the source document, which is the point.
 
-**3. One real governed write to a live ERP.** LedgerPilot posted a real, *posted* `account.move` (`MISC/2026/06/0001`, 4,500.00 rent) to a live **Odoo 19** instance on odoo.sh, through the actual project path: gate approves, HMAC token, `XmlrpcOdooClient` creates and posts. Re-running returns the same entry instead of double-posting (server-side dedupe on the content hash). This is not mocked. Proof: [docs/real_write_proof.txt](docs/real_write_proof.txt); reproduce with [scripts/real_odoo_write.py](scripts/real_odoo_write.py).
+**3. Real governed writes to a live ERP.** LedgerPilot posted real, *posted* `account.move` records to a live **Odoo 19** instance, through the actual project path: gate approves, HMAC token, `XmlrpcOdooClient` creates and posts. Nothing is mocked.
+
+| Entry | Amount | Written by | Proof |
+|---|---|---|---|
+| `MISC/2026/06/0001` (June rent) | 4,500.00 | local run | [docs/real_write_proof.txt](docs/real_write_proof.txt) |
+| `MISC/2026/06/0002` (June utilities) | 1,280.00 | **the agent on Alibaba Cloud ECS** | [docs/ecs_proof.txt](docs/ecs_proof.txt) |
+
+Re-running either returns the same entry instead of double-posting (dedupe on the content hash embedded in the move). Reproduce with [scripts/real_odoo_write.py](scripts/real_odoo_write.py).
+
+**4. The backend runs on Alibaba Cloud.** The agent is deployed on an **Alibaba Cloud ECS** instance (`i-t4n1i5p7bz4ypj122e6q`, `ecs.t6-c1m2.large`, Ubuntu 24.04, `ap-southeast-1`), provisioned by [scripts/deploy_ecs.py](scripts/deploy_ecs.py) through the ECS and VPC OpenAPIs. Everything above (the test suite, the gate stress-test, the live Qwen measurement, and the ERP write) was executed **on that instance**, and it serves the gate's web UI on port 80. [docs/ecs_proof.txt](docs/ecs_proof.txt) is the transcript, including the values returned by the ECS instance metadata service, which only answers on a real ECS instance.
 
 ---
 
@@ -114,7 +129,14 @@ python -m eval.harness --live # MEASURED false-write rate on real Qwen output + 
 python scripts/live_close.py  # watch the real agent propose -> gate -> governed write
 ```
 
-The deterministic gate, demo, and offline harness run **without a live ERP and without an API key** (the offline path uses an error-injection planner). The `--live` path targets real Qwen models on Alibaba Cloud Model Studio; the write-back targets a live Odoo (demonstrated on Odoo 19 / odoo.sh; see ARCHITECTURE.md).
+The deterministic gate, demo, and offline harness run **without a live ERP and without an API key** (the offline path uses an error-injection planner). The `--live` path targets real Qwen models on Alibaba Cloud Model Studio; the write-back targets a live Odoo 19. In deployment all of this runs on an Alibaba Cloud ECS instance, provisioned with:
+
+```bash
+pip install -e ".[deploy]"
+export ALIBABA_CLOUD_ACCESS_KEY_ID=... ALIBABA_CLOUD_ACCESS_KEY_SECRET=...
+python scripts/deploy_ecs.py     # creates the VPC, security group, key pair and instance
+                                 # --destroy releases it
+```
 
 ## Impact and compliance
 
@@ -158,7 +180,8 @@ python -m eval.harness --live                    # measured false-write rate + W
 
 - **Multi-line tax splits are not yet enforced by reconciliation.** The gate checks that every account is within policy and the total matches the document; it does not yet verify a per-line net/VAT split, so a VAT-inclusive invoice lumped into one expense line can pass. The measured task set is single-account for that reason; per-line reconciliation against document net/tax is the next extension.
 - **The reconciliation policy is per-document, not per-line, so within-document account selection can slip.** Each document type carries a posting policy: the set of accounts permitted for that kind of document (an expense invoice may debit any expense account, and credit cash or accounts payable). The gate enforces that set plus the amount. If a model posts to a permitted-but-wrong account, the gate passes it, so it would surface as a nonzero false-write rate. This is why the metric is falsifiable rather than zero by construction; in the committed live run every model mistake happened to fall outside the permitted set and was caught, so the measured rate was 0%. In production the policy comes from the ERP's own chart-of-accounts structure and the organization's mapping rules maintained by controllers, not from a per-task list; the next step is escalating genuinely ambiguous choices to a human rather than accepting any permitted account.
-- **The live measurement is done.** Its raw transcript (both models, on Model Studio) is committed at [docs/live_run.txt](docs/live_run.txt) so the headline numbers are verifiable, not just asserted. The gate, demo, and offline stress-test still need no key.
+- **The live measurement is done, and it varies between runs.** Raw transcripts for both models are committed ([docs/ecs_proof.txt](docs/ecs_proof.txt), run on Alibaba Cloud ECS, and [docs/live_run.txt](docs/live_run.txt), run locally) so the headline numbers are verifiable rather than asserted. Model accuracy moves a few points run to run because sampling is not perfectly reproducible even at temperature 0; the gate's behaviour did not move, catching every mistake in both runs. The gate, demo, and offline stress-test still need no key.
+- **Idempotency is sequential-retry safe, not concurrency safe.** The client searches for the entry's content hash before creating the move, so a re-run does not double-post. Two agents writing the same entry at the same instant could still race; production would use a unique constraint on the hash in the ERP.
 - **Production key management:** the HMAC signing key defaults to a development placeholder and must come from a secret manager (e.g. Alibaba Cloud KMS) via `LEDGERPILOT_SIGNING_KEY`.
 
 ## Submission artifacts (Global AI Hackathon with Qwen Cloud)
@@ -167,8 +190,9 @@ python -m eval.harness --live                    # measured false-write rate + W
 |---|---|
 | Track | Autopilot Agent |
 | Public repo + OSS license | this repo, [LICENSE](LICENSE) (Apache-2.0) |
-| Proof of Alibaba Cloud Deployment (code file) | [ledgerpilot/planner.py](ledgerpilot/planner.py) (Qwen via Model Studio, function calling) |
-| Real ERP write (bonus) | [scripts/real_odoo_write.py](scripts/real_odoo_write.py), proof [docs/real_write_proof.txt](docs/real_write_proof.txt) (posted `MISC/2026/06/0001` to a live Odoo 19) |
+| Proof of Alibaba Cloud Deployment (code file) | [ledgerpilot/planner.py](ledgerpilot/planner.py) (Qwen on Model Studio, function calling) and [scripts/deploy_ecs.py](scripts/deploy_ecs.py) (the ECS + VPC OpenAPI calls that provisioned the server the backend runs on) |
+| Proof the backend ran on Alibaba Cloud (transcript) | [docs/ecs_proof.txt](docs/ecs_proof.txt), generated on ECS instance `i-t4n1i5p7bz4ypj122e6q` |
+| Real ERP write (bonus) | [scripts/real_odoo_write.py](scripts/real_odoo_write.py); posted `MISC/2026/06/0001` from local ([docs/real_write_proof.txt](docs/real_write_proof.txt)) and `MISC/2026/06/0002` from ECS ([docs/ecs_proof.txt](docs/ecs_proof.txt)) to a live Odoo 19 |
 | Architecture diagram | [docs/architecture.svg](docs/architecture.svg), [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Demo video script | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) |
 | Text description | [docs/DEVPOST.md](docs/DEVPOST.md) |

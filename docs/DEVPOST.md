@@ -44,8 +44,9 @@ The deterministic gate is the single trust boundary and the only path to the led
 
 ## How I use Qwen Cloud
 
-Everything runs on Alibaba Cloud Model Studio through the OpenAI-compatible endpoint.
+The backend runs **on Alibaba Cloud ECS** and calls Qwen on **Alibaba Cloud Model Studio** in the same region, through the OpenAI-compatible endpoint.
 
+- **Agent runtime: Alibaba Cloud ECS.** `scripts/deploy_ecs.py` provisions the instance through the ECS and VPC OpenAPIs (key pair, security group, VPC, vSwitch, instance), and the agent, the gate, and the write-back all execute there. It also serves the gate's web UI on port 80, so the running backend is visible in a browser.
 - **Planner: `qwen3.7-max` with function calling.** The planner drafts entries and calls tools to ground each line against the chart of accounts, so account codes are resolved against real data instead of invented. Harder cases can enable Qwen3 thinking mode.
 - **Ingestion: `qwen3-vl-plus`.** The vision model reads document and email images (statements, invoices, approvals) and extracts the line items and amounts the planner works from.
 - **Governed write via SSE-MCP on the Responses API.** The Odoo MCP server is attached as an SSE MCP tool through Model Studio's Responses API (`tools=[{"type": "mcp", ...}]`). An entry reaches this path only after LedgerPilot's own deterministic gate has re-checked and approved it, so the gate, not the model, is authoritative: the MCP client is instructed to call `validate_write` then `execute_approved_write`, but the safety guarantee comes from the pre-gate, not from the prompt. An XML-RPC client provides a direct, idempotent write path to the same Odoo instance (the content hash is embedded in the move and deduplicated server-side).
@@ -63,7 +64,20 @@ unstructured inputs ──► Qwen perception ──► Qwen planner ──► D
 
 ## Measured result
 
-I report two numbers, kept separate on purpose. The offline synthetic gate stress-test runs a 204-case seeded-error corpus (12 scenarios, 14 error classes) through the gate to prove the decision logic is sound. The measured live number runs the real Qwen planner (with function calling) on 39 close tasks and reports the false-write rate on what the model actually produced. On Alibaba Cloud Model Studio the gate caught every mistake either model made and wrote 0 wrong entries. Qwen3.7-Max was 97.4% accurate; its one mistake, booking a software invoice to a prepaid asset instead of an expense, was caught by reconciliation. The faster qwen-flash was 87.2% accurate and the gate caught all 5 of its cross-class mistakes, including a cost-of-goods entry it tried to post to accounts receivable and revenue. False-write rate 0% for both (Wilson 95% CI at most 9.18% and 10.15%); the raw transcript is committed at `docs/live_run.txt`. This is not zero by construction: a permitted-but-wrong account posting would surface as a nonzero rate (the gate enforces the document's posting policy and the amount, not the choice among the accounts that policy permits); in this run every model error fell outside the permitted set and was caught. I do not quote a vendor-style accuracy percentage.
+I report two numbers, kept separate on purpose. The offline synthetic gate stress-test runs a 204-case seeded-error corpus (12 scenarios, 14 error classes) through the gate to prove the decision logic is sound. The measured live number runs the real Qwen planner (with function calling) on 39 close tasks and reports the false-write rate on what the model actually produced. That live run executed **on the Alibaba Cloud ECS instance the backend is deployed to**, calling Model Studio in the same region; the raw transcript is committed at `docs/ecs_proof.txt`.
+
+**Eight model mistakes. Eight caught. Zero wrong entries reached the ledger.**
+
+| Model | Accuracy | Mistakes | Caught | False writes |
+|---|---|---|---|---|
+| `qwen3.7-max` | 97.4% (38/39) | 1 | 1 of 1 | **0** (Wilson 95% CI ≤ 9.18%) |
+| `qwen-flash` | 82.1% (32/39) | 7 | 7 of 7 | **0** (≤ 10.72%) |
+
+The mistakes are the interesting part. Nearly all were cross-class postings: settling an invoice by crediting accounts receivable instead of cash, or booking cost-of-goods to receivables and revenue. Every one of them balances, uses real accounts, and reads plausibly, so a trial balance passes all of them. Only reconciliation to the source document catches them.
+
+Swap the flagship for a model that makes seven times as many mistakes, and the ledger is still clean. **That is the claim: correctness is a property of the gate, not of the model being right.**
+
+This is not zero by construction: a permitted-but-wrong account posting would surface as a nonzero rate (the gate enforces the document's posting policy and the amount, not the choice among the accounts that policy permits); in this run every model error fell outside the permitted set and was caught. I do not quote a vendor-style accuracy percentage.
 
 | Metric (offline synthetic stress-test) | Result |
 |---|---|
@@ -93,9 +107,10 @@ Anyone can prompt "build me an accounting agent." The defensible part is not the
 
 I want to be precise about what runs today versus what a production deployment would require.
 
+- **Deployed and running on Alibaba Cloud:** the backend runs on an ECS instance (`i-t4n1i5p7bz4ypj122e6q`, `ap-southeast-1`), provisioned by `scripts/deploy_ecs.py` through the ECS and VPC OpenAPIs. The test suite, the 204-case gate stress-test, the live Qwen measurement, and a real ERP write all executed on that instance, which also serves the gate's web UI on port 80. `docs/ecs_proof.txt` is the transcript, including values from the ECS instance metadata service, which only answers on a real ECS box.
 - **Working now, no credentials:** the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the 204-case offline synthetic stress-test, the demo, and the test suite. The offline harness uses an error-injection planner to stress every gate check against known ground truth, so the reported numbers are a gate stress-test on a synthetic, self-constructed corpus, not yet a production sensitivity study.
-- **Done, with a Model Studio key:** the `--live` measurement against real Qwen output (Qwen3.7-Max and qwen-flash) on 39 close tasks, reported above.
-- **Done, against a live ERP:** one real governed write. The full path (gate approves, HMAC token, XML-RPC client) created and posted a real `account.move` (`MISC/2026/06/0001`, 4,500.00 rent) to a live Odoo 19 instance, with server-side idempotency proven on re-run. Proof in `docs/real_write_proof.txt`; reproduce with `scripts/real_odoo_write.py`.
+- **Done, with a Model Studio key:** the `--live` measurement against real Qwen output (Qwen3.7-Max and qwen-flash) on 39 close tasks, reported above. Model accuracy moves a few points between runs (sampling is not perfectly reproducible even at temperature 0); the gate's result did not move.
+- **Done, against a live ERP:** two real governed writes. The full path (gate approves, HMAC token, XML-RPC client) created and posted real `account.move` records to a live Odoo 19: `MISC/2026/06/0001` (4,500.00 rent) from a local run, and `MISC/2026/06/0002` (1,280.00 utilities) from the agent running on ECS. Idempotency proven on re-run (one move per reference, no double-post). Proof in `docs/real_write_proof.txt` and `docs/ecs_proof.txt`; reproduce with `scripts/real_odoo_write.py`.
 - **To production this would need:** integration with a real ERP and its actual chart of accounts and period calendar, a prospective study measuring false-write rate against a gold-standard set of real closes, and proper key management for the signing key (it currently defaults to a development value).
 
 The thesis holds regardless of scale: the ledger is a system of record that must never be corrupted, so the generative model proposes and a deterministic, control-mapped gate is the only thing allowed to write.

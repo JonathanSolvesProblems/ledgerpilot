@@ -18,7 +18,9 @@
       .layerlabel { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
       .cloud { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1.5; }
       .cloudchip { fill: #ffffff; stroke: #fbbf24; stroke-width: 1; }
+      .chiplive { fill: #f0fdf4; stroke: #16a34a; stroke-width: 2; }
       .chip { font-size: 12px; fill: #7c2d12; font-weight: 600; }
+      .chipgreen { font-size: 12px; fill: #14532d; font-weight: 700; }
       .metric { font-size: 13px; fill: #14532d; font-weight: 600; }
       .check { font-size: 11.5px; fill: #7f1d1d; }
     </style>
@@ -60,18 +62,19 @@
   <!-- GATE -->
   <rect x="600" y="120" width="320" height="300" class="gate" rx="12"/>
   <text x="760" y="150" text-anchor="middle" class="boxlabel" fill="#991b1b" font-size="17">DETERMINISTIC GATE</text>
-  <text x="760" y="170" text-anchor="middle" class="boxsub" fill="#b91c1c">pure rules · no LLM · reproducible</text>
+  <text x="760" y="170" text-anchor="middle" class="boxsub" fill="#b91c1c">8 pure rules · no LLM · reproducible</text>
   <line x1="620" y1="182" x2="900" y2="182" stroke="#fca5a5" stroke-width="1"/>
-  <text x="622" y="205" class="check">1  Balance: debits = credits, to the cent</text>
-  <text x="622" y="227" class="check">2  Account validity: exists and is postable</text>
-  <text x="622" y="249" class="check">3  No self-contra / positive amounts</text>
-  <text x="622" y="271" class="check">4  Period lock: entry date in an open period</text>
-  <text x="622" y="293" class="check">5  Segregation of duties: preparer != approver</text>
-  <text x="622" y="315" class="check">6  Approval threshold: HITL above limit</text>
-  <text x="622" y="337" class="check" font-weight="700">7  Reconcile to source: right amount + account</text>
-  <text x="622" y="359" class="check" fill="#991b1b">    (catches balanced-but-wrong entries an LLM makes)</text>
-  <rect x="620" y="372" width="280" height="36" fill="#fee2e2" stroke="#fca5a5" rx="6"/>
-  <text x="760" y="395" text-anchor="middle" class="check" font-weight="700">APPROVED  ·  NEEDS_HUMAN  ·  REJECTED</text>
+  <text x="622" y="203" class="check">1  Balance: debits = credits, to the cent</text>
+  <text x="622" y="223" class="check">2  Account validity: exists and is postable</text>
+  <text x="622" y="243" class="check">3  No self-contra: same account both sides</text>
+  <text x="622" y="263" class="check">4  Positive amounts</text>
+  <text x="622" y="283" class="check">5  Period lock: entry date in an open period</text>
+  <text x="622" y="303" class="check">6  Segregation of duties: preparer != approver</text>
+  <text x="622" y="323" class="check">7  Approval threshold: HITL above limit</text>
+  <text x="622" y="343" class="check" font-weight="700">8  Reconcile to source: right amount + account</text>
+  <text x="622" y="362" class="check" fill="#991b1b">    (catches balanced-but-wrong entries an LLM makes)</text>
+  <rect x="620" y="374" width="280" height="36" fill="#fee2e2" stroke="#fca5a5" rx="6"/>
+  <text x="760" y="397" text-anchor="middle" class="check" font-weight="700">APPROVED  ·  NEEDS_HUMAN  ·  REJECTED</text>
 
   <!-- Signed token -->
   <rect x="950" y="130" width="150" height="90" class="gov" rx="10"/>
@@ -117,39 +120,42 @@
   <text x="60" y="394" class="metric">False-reject rate:  0%  (0 / 36 clean controls wrongly blocked)</text>
   <text x="60" y="412" class="boxsub">reproduce: python -m eval.harness   (offline, no key)  ·  --live uses the real Qwen planner</text>
 
+  <!-- Live measured callout -->
+  <rect x="40" y="432" width="530" height="118" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5" rx="10"/>
+  <text x="60" y="458" class="boxlabel" fill="#1e3a8a">Measured on real Qwen output (39 close tasks, run ON Alibaba Cloud ECS)</text>
+  <text x="60" y="483" class="metric" fill="#1e3a8a">qwen3.7-max   97.4% accurate  ·  1 mistake  ·  1 of 1 caught  ·  0 wrong writes</text>
+  <text x="60" y="505" class="metric" fill="#1e3a8a">qwen-flash    82.1% accurate  ·  7 mistakes ·  7 of 7 caught  ·  0 wrong writes</text>
+  <text x="60" y="529" class="boxlabel" fill="#1e3a8a" font-size="14">8 model mistakes  ·  8 caught  ·  0 wrong entries reached the ledger</text>
+  <text x="60" y="545" class="boxsub">a 7x worse model, the same clean ledger: correctness comes from the gate, not the model</text>
+
   <!-- Cloud band -->
   <rect x="40" y="560" width="1220" height="180" class="cloud" rx="12"/>
-  <text x="60" y="590" class="layerlabel" fill="#b45309">ALIBABA CLOUD  ·  backend + Qwen Cloud (Model Studio / DashScope)</text>
+  <text x="60" y="590" class="layerlabel" fill="#b45309">ALIBABA CLOUD  ·  the backend RUNS HERE (green = live and proven, grey = designed, not yet wired)</text>
 
   <g>
-    <rect x="60" y="610" width="220" height="52" class="cloudchip" rx="8"/>
-    <text x="170" y="634" text-anchor="middle" class="chip">Model Studio / DashScope</text>
-    <text x="170" y="651" text-anchor="middle" class="boxsub">Qwen3 models · function calling · MCP</text>
+    <rect x="60" y="602" width="285" height="54" class="chiplive" rx="8"/>
+    <text x="202" y="624" text-anchor="middle" class="chipgreen">ECS  ·  agent runtime</text>
+    <text x="202" y="644" text-anchor="middle" class="boxsub">i-t4n1i5p7bz4ypj122e6q · ap-southeast-1</text>
 
-    <rect x="300" y="610" width="150" height="52" class="cloudchip" rx="8"/>
-    <text x="375" y="634" text-anchor="middle" class="chip">Odoo 19</text>
-    <text x="375" y="651" text-anchor="middle" class="boxsub">live ERP (odoo.sh) · real write</text>
+    <rect x="355" y="602" width="285" height="54" class="chiplive" rx="8"/>
+    <text x="497" y="624" text-anchor="middle" class="chipgreen">Model Studio / DashScope</text>
+    <text x="497" y="644" text-anchor="middle" class="boxsub">qwen3.7-max · function calling · MCP</text>
 
-    <rect x="470" y="610" width="180" height="52" class="cloudchip" rx="8"/>
-    <text x="560" y="634" text-anchor="middle" class="chip">Function Compute</text>
-    <text x="560" y="651" text-anchor="middle" class="boxsub">agent runtime</text>
+    <rect x="650" y="602" width="285" height="54" class="chiplive" rx="8"/>
+    <text x="792" y="624" text-anchor="middle" class="chipgreen">ECS + VPC OpenAPI</text>
+    <text x="792" y="644" text-anchor="middle" class="boxsub">scripts/deploy_ecs.py provisioned the box</text>
 
-    <rect x="670" y="610" width="140" height="52" class="cloudchip" rx="8"/>
-    <text x="740" y="634" text-anchor="middle" class="chip">OSS</text>
-    <text x="740" y="651" text-anchor="middle" class="boxsub">document store</text>
+    <rect x="945" y="602" width="285" height="54" class="chiplive" rx="8"/>
+    <text x="1087" y="624" text-anchor="middle" class="chipgreen">Live Odoo 19  ·  system of record</text>
+    <text x="1087" y="644" text-anchor="middle" class="boxsub">2 real posted account.move records</text>
 
-    <rect x="830" y="610" width="150" height="52" class="cloudchip" rx="8"/>
-    <text x="905" y="634" text-anchor="middle" class="chip">Tablestore</text>
-    <text x="905" y="651" text-anchor="middle" class="boxsub">tokens · audit log</text>
+    <rect x="60" y="666" width="560" height="40" fill="#f8fafc" stroke="#e2e8f0" rx="8"/>
+    <text x="72" y="691" class="boxsub">Planned: OSS (document store) · Tablestore (tokens, audit log) · AnalyticDB (policy retrieval) · API Gateway</text>
 
-    <rect x="1000" y="610" width="200" height="52" class="cloudchip" rx="8"/>
-    <text x="1100" y="634" text-anchor="middle" class="chip">AnalyticDB for PostgreSQL</text>
-    <text x="1100" y="651" text-anchor="middle" class="boxsub">policy retrieval (vector)</text>
+    <rect x="640" y="666" width="590" height="40" fill="#fffbeb" stroke="#fde68a" rx="8"/>
+    <text x="652" y="684" class="boxsub" fill="#78350f" font-weight="700">Proof of Alibaba Cloud Deployment (2 services, 2 code files):</text>
+    <text x="652" y="700" class="boxsub" fill="#78350f">ledgerpilot/planner.py (Qwen on Model Studio) · scripts/deploy_ecs.py (ECS + VPC OpenAPI)</text>
 
-    <rect x="60" y="676" width="180" height="46" class="cloudchip" rx="8"/>
-    <text x="150" y="704" text-anchor="middle" class="chip">API Gateway</text>
-
-    <rect x="260" y="676" width="940" height="46" fill="#fffbeb" stroke="#fde68a" rx="8"/>
-    <text x="270" y="704" class="boxsub" fill="#78350f">Proof of Alibaba Cloud Deployment: ledgerpilot/planner.py (Qwen on Model Studio, function calling) · odoo_client.py posts a real account.move to a live Odoo 19</text>
+    <text x="60" y="729" class="boxsub" fill="#78350f">Transcript generated on the instance: docs/ecs_proof.txt  ·  gate web UI served from the ECS public IP on port 80</text>
   </g>
 </svg>
