@@ -91,19 +91,35 @@ class JournalEntry(BaseModel):
         return max(self.total_debit, self.total_credit)
 
     def content_hash(self) -> str:
-        """Stable hash of the economically meaningful content.
+        """Stable hash of everything that reaches the ledger or authorizes it.
 
-        Used to bind an approval token to an exact entry and to enforce
-        idempotent write-back. Excludes the approval metadata so that signing
-        does not change the hash it signs over.
+        An approval token is signed over this hash, so whatever is NOT hashed here
+        is, in effect, unsigned and mutable after approval. That has to include
+        more than the amounts:
+
+          memo         is written to Odoo as the move's narration
+          description  is written to each move line's name
+          prepared_by  and approved_by ARE the segregation-of-duties attestation
+
+        Leaving those out would let a holder of a valid token rewrite the narration
+        or forge the approver's name while the signature still verified: tamper-
+        evident for cents, forgeable for the audit trail. So the hash covers the
+        full economic content and the provenance.
+
+        The token is carried separately from the entry (see tokens.py), so signing
+        never mutates what it signs over.
         """
         payload = {
             "ref": self.ref,
             "entry_date": self.entry_date.isoformat(),
+            "memo": self.memo,
             "source_doc_id": self.source_doc_id,
+            "prepared_by": self.prepared_by,
+            "approved_by": self.approved_by,
             "lines": [
                 {
                     "account_code": ln.account_code,
+                    "description": ln.description,
                     "debit": str(ln.debit),
                     "credit": str(ln.credit),
                 }

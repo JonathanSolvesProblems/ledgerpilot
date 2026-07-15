@@ -51,7 +51,7 @@ Two boundaries matter here. The **trust boundary** is horizontal: Qwen proposes,
 ### 1. Ingestion (generative): `ingest.py`
 - Reads scanned invoices / bank statements with **qwen3-vl-plus** (multimodal).
 - Extracts and normalizes line items, dates, counterparties, amounts.
-- Reads approval emails for who authorized what (feeds segregation-of-duties checks).
+- Implemented but not exercised in the measured runs: every committed metric starts from a natural-language task or a structured source document, not an image.
 
 ### 2. Planner (generative): `planner.py`
 - Uses **qwen3.7-max** with **function calling** to draft candidate journal entries.
@@ -67,9 +67,13 @@ Pure, side-effect-free rules. Each check is independently testable and produces 
 - **Approval thresholds:** entries above a configured amount require explicit human approval (human-in-the-loop checkpoint).
 - **Reconciliation to source (semantic check):** when a source document is supplied, the entry's total must equal the document total and its accounts must fall within the posting policy for that document type. This is what catches a balanced, valid-account, plausible entry that posts the *wrong* amount or to the *wrong* account, the characteristic failure mode of a generative planner.
 
-### 4. Governed write-back: `tokens.py` + `writeback.py`
-- An approved proposal is bound to an **HMAC-signed approval token** that captures a hash of the exact entry. The token cannot be reused for a different entry (tamper-evident).
-- `writeback.py` calls the Odoo MCP `validate_write` → `execute_approved_write` chain; execution is **idempotent** (keyed on the entry hash) and supports **rollback**. The MCP server is reached as an **SSE MCP server via the Model Studio Responses API** (`tools` parameter), which is the integration path the rubric's "MCP integrations" criterion rewards.
+### 4. Governed write-back: `tokens.py` + `writeback.py` + `odoo_client.py`
+- An approved proposal is bound to an **HMAC-signed approval token** over a hash of the exact entry. The hash covers the amounts, accounts, memo, line descriptions, and the preparer/approver, so nothing that reaches the ledger or attests to the approval can be changed after signing without invalidating the token. Tamper the amount, the narration, or the approver's name, and the signature no longer verifies.
+- `writeback.py` re-runs the full gate at write time (a stale approval is never trusted), verifies the token, then calls `odoo_client.py`, which creates and posts a real `account.move` over Odoo's XML-RPC API. The write is idempotent on a sequential retry: the entry's content hash is embedded in the move's narration and searched for before creating. This is a best-effort guard, not an atomic one; a production system would add a unique constraint on the hash.
+
+### 5. MCP integration: `mcp_server.py`
+- The gate is also exposed as an **MCP server**, attached to Qwen on Model Studio as an **SSE MCP tool via the Responses API** (`tools=[{"type": "mcp", "server_protocol": "sse", ...}]`). `validate_write` is read-only; `execute_approved_write` re-runs the gate and verifies the HMAC token server-side before writing.
+- The point of putting the gate *behind the tool* is that the model can be given write access without being given the authority to write anything wrong. `scripts/mcp_demo.py` has Qwen post a real entry, then instructs it to inflate the amount before writing: the content hash changes, the token fails, and the server refuses. The safety boundary survives a model-driven tool call.
 
 ## Alibaba Cloud deployment topology
 
@@ -78,7 +82,7 @@ Status column is explicit so nothing reads as provisioned when it is not.
 | Component | Service | Status |
 |---|---|---|
 | Agent runtime (the backend itself) | **Alibaba Cloud ECS** (`ecs.t6-c1m2.large`, Ubuntu 24.04, `ap-southeast-1`) | **Live** (instance `i-t4n1i5p7bz4ypj122e6q`, `docs/ecs_proof.txt`) |
-| Qwen models (planner `qwen3.7-max`, vision `qwen3-vl-plus`) | **Alibaba Cloud Model Studio / DashScope** (OpenAI-compatible + Responses API for MCP) | **Live** (measured, `docs/live_run.txt`) |
+| Qwen models (planner `qwen3.7-max`, vision `qwen3-vl-plus`) | **Alibaba Cloud Model Studio / DashScope** (OpenAI-compatible + Responses API for MCP) | **Live** (measured, `docs/ecs_proof.txt`) |
 | Infrastructure provisioning | **Alibaba Cloud ECS + VPC OpenAPI** (`scripts/deploy_ecs.py`) | **Live** (this script created the instance above) |
 | Odoo ERP (system of record) | **Live Odoo 19** (odoo.sh) | **Live** (real posted `account.move`, `docs/real_write_proof.txt`) |
 | Document store (statements, invoices) | Alibaba Cloud OSS | Planned |

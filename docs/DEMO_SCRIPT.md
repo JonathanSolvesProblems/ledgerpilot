@@ -1,4 +1,6 @@
-Two recording scripts, grounded in the exact on-screen output. The demo opens on the reconciliation catch and refuses the write; the suite passes (53 tests); the harness prints the 0.00% / <=8.33% CI numbers.
+Two recording scripts, grounded in the exact on-screen output. The demo opens on the reconciliation catch and refuses the write; the suite passes (72 tests); the harness prints the 0.00% / <=8.33% CI numbers.
+
+> The primary, up-to-date shot list and voiceover is `demo_script.md` in the repo root, which leads with the counterfactual (7 wrong entries gate-off vs 0 gate-on) and the MCP tamper scene. This file is the longer reference version; where they differ, follow `demo_script.md`.
 
 ---
 
@@ -22,7 +24,7 @@ NARRATION: "This journal entry balances to the cent. Every account on it is real
 
 **[0:14 - 0:38] The problem and the thesis**
 
-ON SCREEN: Cut to a title card: "LedgerPilot" with the subtitle "An autonomous month-end-close agent with a deterministic write gate." Then cut to the README "deterministic vs generative" table (lines 31-35).
+ON SCREEN: Cut to a title card: "LedgerPilot" with the subtitle "An autonomous month-end-close agent with a deterministic write gate." Then cut to the README "deterministic vs generative" table.
 
 NARRATION: "Month-end close is people stitching invoices, statements, and email approvals into journal entries. Hand that to an AI that writes straight to the ledger, and one confident, wrong entry is not a convenience, it is an audit finding. So LedgerPilot splits the job. The Qwen model reasons and proposes. It never writes. A deterministic gate is the only path to the ledger."
 
@@ -57,7 +59,7 @@ NARRATION: "The generative layers run on Alibaba Cloud Model Studio: Qwen3-VL re
 
 **[2:38 - 2:52] Close and honest scope**
 
-ON SCREEN: Uniqueness-claim card (README line 5, trimmed): "The only close agent that publishes a measured false-write rate, with a confidence bound, on a seeded-error corpus, backed by a deterministic reconciliation check that catches balanced-but-wrong entries a trial balance never will." Below it: "Track 4: Autopilot Agent" and the repo URL with the Apache-2.0 badge.
+ON SCREEN: Uniqueness-claim card (trimmed from the README opening): "The only close agent that shows you the wrong entries with the gate off, then zero with it on, and publishes a measured false-write rate with a confidence bound." Below it: "Track 4: Autopilot Agent" and the repo URL with the Apache-2.0 badge.
 
 NARRATION: "That is the claim: the only close agent that publishes a measured false-write rate, backed by a deterministic check that catches the balanced-but-wrong entries a trial balance never will. It runs on Alibaba Cloud, it writes to a real ERP, and eight model mistakes in, nothing wrong has ever reached the ledger. LedgerPilot: the model proposes, the gate decides."
 
@@ -121,5 +123,4 @@ Caveats:
 - Script 2 runs on the ECS instance. Beat 1 (the metadata service) is what proves the backend is *running on* Alibaba Cloud rather than merely calling it, which is the eligibility bar.
 - Host on YouTube or Vimeo (both appear on both versions of the rules), set PUBLIC. Keep the demo strictly under 3:00; judges are not required to watch past it.
 - Deployment proof: submit the code-file link (`scripts/deploy_ecs.py`, and `ledgerpilot/planner.py` if a second is allowed), an ECS console screenshot showing the instance Running, and this short separate recording.
-- The ECS box bills by the hour. Record everything, then release it: `python scripts/deploy_ecs.py --destroy`.
-- I did not commit these changes. Commit them before you record so the repo shown in Script 2 matches the video.
+- Keep the ECS box running through the judging window so a judge can open `http://47.84.116.56/` and the live URL in the video still resolves. Release it (`python scripts/deploy_ecs.py --destroy`) only after judging closes.

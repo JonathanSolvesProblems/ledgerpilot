@@ -29,18 +29,18 @@ This is the headline answer to the AI Factor question, not a demo of what the mo
 |---|---|---|
 | Reading messy multi-source inputs, extracting line items, drafting entries | **Generative (Qwen3)** | Unstructured, ambiguous, needs reasoning |
 | Balance, account validity, period locks, segregation of duties, approval thresholds, reconciliation to the source document | **Deterministic (rules engine)** | Must be exact, auditable, reproducible |
-| Committing an approved entry to the ledger | **Governed write-back** | Signed token, idempotent, human-in-the-loop gate, rollback |
+| Committing an approved entry to the ledger | **Governed write-back** | Signed token, idempotent on retry, human-in-the-loop gate above threshold |
 
 The deterministic gate is the single trust boundary and the only path to the ledger. Critically, the gate does not only check that an entry is well-formed (it balances, the accounts exist). It checks that the entry is correct by reconciling each proposal against the independent source document. That is what lets it catch a confident, balanced, plausible-looking entry that a generative model posted to the wrong account or for the wrong amount, the class of semantic error (error of principle, error of commission, compensating error) that a balance-only check and a pure-LLM agent both miss.
 
 ## Features and functionality
 
-- **Ingestion.** LedgerPilot reads bank statements, invoices, and approval emails and extracts structured line items.
-- **Planner.** A Qwen3 planner drafts a candidate journal entry grounded in the chart of accounts, and returns its reasoning alongside the entry.
-- **Deterministic gate.** Every proposal runs through side-effect-free checks: balance, account validity, period lock, segregation of duties (preparer is not approver), approval thresholds, and reconciliation to the source document. Money is `Decimal`-only, with floats rejected at the model boundary.
-- **Signed approval tokens.** An approved entry gets an HMAC token content-bound to the entry and its evidence, so a tampered entry cannot reuse an approval. This is the non-repudiation record of the control's execution.
-- **Governed write-back.** Writes are idempotent on a content hash (no double-posting), pass through a human-in-the-loop gate for anything over threshold, and support rollback.
-- **Audit trail.** Rejected entries route to an audit log and a review queue rather than the ledger.
+- **Ingestion.** LedgerPilot reads bank statements and invoices with `qwen3-vl-plus` and extracts structured line items. (Implemented; the measured runs start from natural-language tasks and structured source documents, so the vision path is not exercised in the committed transcripts.)
+- **Planner.** A Qwen3 planner drafts a candidate journal entry, calling a `lookup_accounts` tool to ground each account code against the real chart, and returns its reasoning alongside the entry.
+- **Deterministic gate.** Every proposal runs through eight side-effect-free checks: balance (including that the entry actually moves value), account validity, no account on both sides, positive amounts, period lock, segregation of duties (preparer is not approver), approval thresholds, and reconciliation to the source document. Money is `Decimal`-only, with floats rejected at the model boundary. The gate fails closed: any failing check other than the human-approval threshold rejects.
+- **Signed approval tokens.** An approved entry gets an HMAC token content-bound to the entry, including the amounts, accounts, narration, and the preparer/approver, so neither the numbers nor the audit trail can be altered after approval without invalidating the token.
+- **Governed write-back.** Writes are idempotent on a content hash (no double-posting on a sequential retry) and pass through a human-in-the-loop gate for anything over threshold.
+- **MCP.** The gate is also an MCP server, so Qwen can call the write tool directly and still cannot write anything wrong: the server re-runs the gate and verifies the token. Reversal entries and a persisted audit log / review queue are designed into the topology but not yet implemented.
 
 ## How I use Qwen Cloud
 
@@ -48,25 +48,36 @@ The backend runs **on Alibaba Cloud ECS** and calls Qwen on **Alibaba Cloud Mode
 
 - **Agent runtime: Alibaba Cloud ECS.** `scripts/deploy_ecs.py` provisions the instance through the ECS and VPC OpenAPIs (key pair, security group, VPC, vSwitch, instance), and the agent, the gate, and the write-back all execute there. It also serves the gate's web UI on port 80, so the running backend is visible in a browser.
 - **Planner: `qwen3.7-max` with function calling.** The planner drafts entries and calls tools to ground each line against the chart of accounts, so account codes are resolved against real data instead of invented. Harder cases can enable Qwen3 thinking mode.
-- **Ingestion: `qwen3-vl-plus`.** The vision model reads document and email images (statements, invoices, approvals) and extracts the line items and amounts the planner works from.
-- **Governed write via SSE-MCP on the Responses API.** The Odoo MCP server is attached as an SSE MCP tool through Model Studio's Responses API (`tools=[{"type": "mcp", ...}]`). An entry reaches this path only after LedgerPilot's own deterministic gate has re-checked and approved it, so the gate, not the model, is authoritative: the MCP client is instructed to call `validate_write` then `execute_approved_write`, but the safety guarantee comes from the pre-gate, not from the prompt. An XML-RPC client provides a direct, idempotent write path to the same Odoo instance (the content hash is embedded in the move and deduplicated server-side).
+- **Ingestion: `qwen3-vl-plus`.** The vision model reads scanned statements and invoices and extracts the line items and amounts the planner works from. (Implemented; not exercised in the measured runs.)
+- **The gate as an MCP server, driven by Qwen on the Responses API.** `ledgerpilot/mcp_server.py` exposes the deterministic gate as an SSE MCP tool, attached to Qwen through Model Studio's Responses API (`tools=[{"type": "mcp", "server_protocol": "sse", ...}]`). This is the design that makes the MCP integration meaningful rather than decorative: the model is the *caller* of the write tool, not the authority. `validate_write` is read-only; `execute_approved_write` re-runs the full gate and verifies an HMAC token bound to the entry's content hash before it touches Odoo. In `scripts/mcp_demo.py`, Qwen posts a real `account.move` (`move_id 3`), and when the same run instructs it to inflate the amount first, the server refuses because the hash no longer matches the token. A direct XML-RPC client provides the same governed, idempotent write path for non-MCP callers.
 
 ## Architecture
 
 ```
-unstructured inputs ──► Qwen perception ──► Qwen planner ──► DETERMINISTIC GATE ──► signed token ──► Odoo write-back
- (statements, invoices,   (qwen3-vl-plus)    (qwen3.7-max +     (balance, accounts,    (HMAC)          (idempotent,
-  approval emails)                            function calling) period, SoD, limits,                  human gate, rollback)
-                                                                reconcile-to-source)
-                                                                      │
-                                                                      └──► rejected entries ──► audit log + review queue
+unstructured inputs ──► Qwen planner ──────► DETERMINISTIC GATE ──► signed token ──► Odoo write-back
+ (statements, invoices)   (qwen3.7-max +      (balance, accounts,    (HMAC, bound     (idempotent on retry,
+                           function calling)   period, SoD, limits,   to the entry)     human gate above
+                                               reconcile-to-source)                     threshold)
+                                                     │
+                                                     └──► rejected / escalated, with the failing check as the reason
 ```
 
 ## Measured result
 
-I report two numbers, kept separate on purpose. The offline synthetic gate stress-test runs a 204-case seeded-error corpus (12 scenarios, 14 error classes) through the gate to prove the decision logic is sound. The measured live number runs the real Qwen planner (with function calling) on 39 close tasks and reports the false-write rate on what the model actually produced. That live run executed **on the Alibaba Cloud ECS instance the backend is deployed to**, calling Model Studio in the same region; the raw transcript is committed at `docs/ecs_proof.txt`.
+**The headline is a counterfactual on a real ledger.** Same qwen-flash planner, same 39 close tasks, same live Odoo. Post every proposal with the gate off, then again with it on. The only variable is the gate.
 
-**Eight model mistakes. Eight caught. Zero wrong entries reached the ledger.**
+| | Entries posted | Wrong entries in the ledger |
+|---|---|---|
+| Gate OFF | 39 | **7** |
+| Gate ON | 32 | **0** |
+
+The seven wrong entries were posted for real with the gate off (transcript: `docs/counterfactual_proof.txt`, generated on ECS). Each balances, uses real accounts, and passes a trial balance: salaries paid out of accounts receivable, cost-of-goods booked to receivables and revenue. **Same model, same tasks, same ledger; 7 wrong entries become 0. The model did not get better. The ledger did.** That is the number to remember, and it is impact in a general ledger, not a percentage of my own test set.
+
+The rest of this section is the evidence for *why* that works: the gate's decision logic is sound at scale, and it holds on live model output.
+
+**On the offline synthetic stress-test**, a 204-case seeded-error corpus (12 scenarios, 14 error classes) run through the gate: 0 false writes of 36 approved (≤ 8.33% at 95% CI), 100% catch (168/168), 0% false-reject.
+
+**On live Qwen output**, run on the Alibaba Cloud ECS instance the backend is deployed to, calling Model Studio in the same region (transcript `docs/ecs_proof.txt`): **eight model mistakes, eight caught, zero wrong entries reached the ledger.**
 
 | Model | Accuracy | Mistakes | Caught | False writes |
 |---|---|---|---|---|
@@ -110,7 +121,8 @@ I want to be precise about what runs today versus what a production deployment w
 - **Deployed and running on Alibaba Cloud:** the backend runs on an ECS instance (`i-t4n1i5p7bz4ypj122e6q`, `ap-southeast-1`), provisioned by `scripts/deploy_ecs.py` through the ECS and VPC OpenAPIs. The test suite, the 204-case gate stress-test, the live Qwen measurement, and a real ERP write all executed on that instance, which also serves the gate's web UI on port 80. `docs/ecs_proof.txt` is the transcript, including values from the ECS instance metadata service, which only answers on a real ECS box.
 - **Working now, no credentials:** the deterministic gate, reconciliation, signed tokens, idempotent write-back logic, the 204-case offline synthetic stress-test, the demo, and the test suite. The offline harness uses an error-injection planner to stress every gate check against known ground truth, so the reported numbers are a gate stress-test on a synthetic, self-constructed corpus, not yet a production sensitivity study.
 - **Done, with a Model Studio key:** the `--live` measurement against real Qwen output (Qwen3.7-Max and qwen-flash) on 39 close tasks, reported above. Model accuracy moves a few points between runs (sampling is not perfectly reproducible even at temperature 0); the gate's result did not move.
-- **Done, against a live ERP:** two real governed writes. The full path (gate approves, HMAC token, XML-RPC client) created and posted real `account.move` records to a live Odoo 19: `MISC/2026/06/0001` (4,500.00 rent) from a local run, and `MISC/2026/06/0002` (1,280.00 utilities) from the agent running on ECS. Idempotency proven on re-run (one move per reference, no double-post). Proof in `docs/real_write_proof.txt` and `docs/ecs_proof.txt`; reproduce with `scripts/real_odoo_write.py`.
-- **To production this would need:** integration with a real ERP and its actual chart of accounts and period calendar, a prospective study measuring false-write rate against a gold-standard set of real closes, and proper key management for the signing key (it currently defaults to a development value).
+- **Done, against a live ERP:** real governed writes through the full path (gate approves, HMAC token, XML-RPC or MCP). Posted `account.move` records to a live Odoo 19: `MISC/2026/06/0001` (rent) from local, `MISC/2026/06/0002` (utilities) from the agent on ECS, and `move_id 3` (SaaS) driven by Qwen through the MCP server. Idempotency proven on re-run. Proof in `docs/real_write_proof.txt`, `docs/ecs_proof.txt`, and `scripts/mcp_demo.py`.
+- **Not yet implemented (stated plainly):** reversal/rollback entries, a persisted audit log and review queue (rejections are refused with the failing check as the reason, but not stored), per-line net/VAT reconciliation, and the vision ingestion path in the measured runs. Idempotency is sequential-retry safe, not concurrency safe.
+- **To production this would need:** integration with a real ERP and its actual chart of accounts and period calendar, a posting policy derived from the ERP's own account structure rather than a per-task list, a prospective study measuring false-write rate against a gold-standard set of real closes, and key management for the signing key from a secret manager (the config already refuses to run against a live ERP with the development default).
 
 The thesis holds regardless of scale: the ledger is a system of record that must never be corrupted, so the generative model proposes and a deterministic, control-mapped gate is the only thing allowed to write.

@@ -1,28 +1,20 @@
-"""Odoo write clients for the governed write-back path.
+"""Odoo write client for the governed write-back path.
 
-Two interchangeable clients implement ``create_move(payload) -> int``:
+``XmlrpcOdooClient`` implements ``create_move(payload) -> int``: it resolves account
+codes to Odoo ids, creates an ``account.move`` and posts it, so the result is an
+official ledger record rather than a draft. Demonstrated against Odoo 19 on odoo.sh.
 
-  XmlrpcOdooClient       Direct write to a live Odoo instance via Odoo's standard
-                         external XML-RPC API. Resolves account codes to ids and
-                         creates and posts an ``account.move``. Demonstrated
-                         against Odoo 19 on odoo.sh.
+The write is idempotent on a sequential retry: the entry's content hash is embedded
+in the move's narration and searched for before creating. That is a best-effort
+guard, not an atomic one (see ``create_move``).
 
-  ModelStudioMcpClient   Routes the write through the Odoo MCP server as an
-                         SSE MCP tool exposed to a Qwen model via Alibaba Cloud
-                         Model Studio's Responses API. The entry has already been
-                         approved by LedgerPilot's deterministic gate before this
-                         client is called, so the gate (not the prompt) is the
-                         safety boundary; the model is instructed to call
-                         validate_write then execute_approved_write. This is the
-                         "sophisticated MCP integration" path the rubric rewards.
-
-The Alibaba Cloud deployment proof lives in ledgerpilot/planner.py (the Qwen calls
-on Model Studio). This module reaches the Odoo system of record (a live Odoo 19).
+The MCP write path lives in ``ledgerpilot/mcp_server.py``, which exposes the gate
+itself as MCP tools so a model can be given the write tool without being given the
+authority to write anything wrong.
 """
 
 from __future__ import annotations
 
-import json
 from typing import Optional
 from xmlrpc import client as xmlrpc_client
 
@@ -101,10 +93,23 @@ class XmlrpcOdooClient:
         """
         self._ensure()
         lp_hash = payload.get("ledgerpilot_hash", "")
+        ref = payload.get("ref", "")
 
+        # Two independent dedupe guards, because they fail differently.
+        #   content hash: exact. Catches a byte-identical retry.
+        #   ref:          the business key of the entry (one invoice, one entry).
+        #                 Catches a retry whose hash moved for a benign reason, e.g.
+        #                 a memo edit or a change to what content_hash covers.
+        # Neither is atomic (see the caveat below), so both are best-effort guards
+        # against a sequential retry, not a substitute for a unique constraint.
         if lp_hash:
             existing = self._kw("account.move", "search",
                                 [[["narration", "like", f"ledgerpilot:{lp_hash}"]]], {"limit": 1})
+            if existing:
+                return int(existing[0])
+        if ref:
+            existing = self._kw("account.move", "search",
+                                [[["ref", "=", ref], ["state", "!=", "cancel"]]], {"limit": 1})
             if existing:
                 return int(existing[0])
 
@@ -134,67 +139,6 @@ class XmlrpcOdooClient:
         return move_id
 
 
-class ModelStudioMcpClient:
-    """Governed write via the Odoo MCP server, driven by Qwen on Model Studio.
-
-    Uses the Alibaba Cloud Model Studio Responses API with the Odoo MCP server
-    attached as an SSE MCP tool. The model is instructed to call only
-    ``validate_write`` then ``execute_approved_write`` (confirm=true) for the
-    already-gate-approved entry, and to return the created move id as JSON.
-    """
-
-    def __init__(self, config: Optional[Config] = None, mcp_server_url: str = "") -> None:
-        self.config = config or load_config()
-        self.mcp_server_url = mcp_server_url
-        self._client = None
-
-    def _ensure_client(self):
-        if not self.mcp_server_url:
-            raise OdooClientError(
-                "No MCP server URL. Point mcp_server_url at the SSE endpoint of "
-                "the Odoo MCP server reachable from Model Studio."
-            )
-        if self._client is None:
-            from openai import OpenAI
-
-            self._client = OpenAI(
-                api_key=self.config.dashscope_api_key,
-                base_url=self.config.dashscope_base_url,
-            )
-        return self._client
-
-    def create_move(self, payload: dict) -> int:
-        client = self._ensure_client()
-        instruction = (
-            "This journal entry has already passed a deterministic validation "
-            "gate and carries a signed approval. Post it to Odoo by calling "
-            "validate_write, then execute_approved_write with confirm=true. Do "
-            "not modify any amounts or accounts. Return only JSON: "
-            '{"move_id": <int>}.\n\nEntry:\n' + json.dumps(payload)
-        )
-        resp = client.responses.create(
-            model=self.config.planner_model,
-            input=instruction,
-            tools=[{
-                "type": "mcp",
-                "server_label": "odoo",
-                "server_url": self.mcp_server_url,
-                "require_approval": "never",
-            }],
-        )
-        text = getattr(resp, "output_text", None) or ""
-        try:
-            return int(json.loads(text)["move_id"])
-        except (ValueError, KeyError, TypeError) as exc:
-            raise OdooClientError(
-                f"MCP write did not return a move id. Raw output: {text!r}"
-            ) from exc
-
-
-def build_odoo_client(config: Optional[Config] = None, prefer: str = "xmlrpc",
-                      mcp_server_url: str = ""):
-    """Factory: pick a write client. 'xmlrpc' for direct ECS Odoo, 'mcp' for the
-    Model Studio Responses-API MCP path."""
-    if prefer == "mcp":
-        return ModelStudioMcpClient(config=config, mcp_server_url=mcp_server_url)
+def build_odoo_client(config: Optional[Config] = None):
+    """Factory for the ledger write client."""
     return XmlrpcOdooClient(config=config)

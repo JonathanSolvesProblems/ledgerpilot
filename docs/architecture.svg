@@ -43,7 +43,7 @@
   <text x="115" y="180" text-anchor="middle" class="boxlabel">inputs</text>
   <text x="115" y="205" text-anchor="middle" class="boxsub">invoices,</text>
   <text x="115" y="222" text-anchor="middle" class="boxsub">bank statements,</text>
-  <text x="115" y="239" text-anchor="middle" class="boxsub">approval emails</text>
+  <text x="115" y="239" text-anchor="middle" class="boxsub">receipts</text>
 
   <!-- Ingestion -->
   <rect x="215" y="130" width="160" height="120" class="gen" rx="10"/>
@@ -84,11 +84,11 @@
 
   <!-- Write-back -->
   <rect x="950" y="245" width="150" height="120" class="gov" rx="10"/>
-  <text x="1025" y="275" text-anchor="middle" class="boxlabel">Write-back</text>
-  <text x="1025" y="298" text-anchor="middle" class="boxsub">idempotent,</text>
-  <text x="1025" y="315" text-anchor="middle" class="boxsub">rollback,</text>
-  <text x="1025" y="332" text-anchor="middle" class="boxsub">re-checks gate</text>
-  <text x="1025" y="352" text-anchor="middle" class="boxsub" font-weight="700">via Odoo MCP</text>
+  <text x="1025" y="274" text-anchor="middle" class="boxlabel">Write-back</text>
+  <text x="1025" y="296" text-anchor="middle" class="boxsub">re-checks gate,</text>
+  <text x="1025" y="313" text-anchor="middle" class="boxsub">verifies token,</text>
+  <text x="1025" y="330" text-anchor="middle" class="boxsub">idempotent on retry</text>
+  <text x="1025" y="352" text-anchor="middle" class="boxsub" font-weight="700">XML-RPC or MCP</text>
 
   <!-- Odoo -->
   <rect x="1130" y="245" width="130" height="120" class="box" rx="10"/>
@@ -100,7 +100,7 @@
   <!-- Reject path -->
   <rect x="600" y="450" width="320" height="60" class="box" rx="10" stroke="#b91c1c"/>
   <text x="760" y="476" text-anchor="middle" class="boxlabel" fill="#991b1b">Rejected / escalated</text>
-  <text x="760" y="496" text-anchor="middle" class="boxsub">audit log + human review queue (Tablestore)</text>
+  <text x="760" y="496" text-anchor="middle" class="boxsub">refused, with the failing check as the reason</text>
 
   <!-- Arrows: main flow -->
   <line x1="190" y1="190" x2="213" y2="190" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
@@ -120,13 +120,13 @@
   <text x="60" y="394" class="metric">False-reject rate:  0%  (0 / 36 clean controls wrongly blocked)</text>
   <text x="60" y="412" class="boxsub">reproduce: python -m eval.harness   (offline, no key)  ·  --live uses the real Qwen planner</text>
 
-  <!-- Live measured callout -->
-  <rect x="40" y="432" width="530" height="118" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5" rx="10"/>
-  <text x="60" y="458" class="boxlabel" fill="#1e3a8a">Measured on real Qwen output (39 close tasks, run ON Alibaba Cloud ECS)</text>
-  <text x="60" y="483" class="metric" fill="#1e3a8a">qwen3.7-max   97.4% accurate  ·  1 mistake  ·  1 of 1 caught  ·  0 wrong writes</text>
-  <text x="60" y="505" class="metric" fill="#1e3a8a">qwen-flash    82.1% accurate  ·  7 mistakes ·  7 of 7 caught  ·  0 wrong writes</text>
-  <text x="60" y="529" class="boxlabel" fill="#1e3a8a" font-size="14">8 model mistakes  ·  8 caught  ·  0 wrong entries reached the ledger</text>
-  <text x="60" y="545" class="boxsub">a 7x worse model, the same clean ledger: correctness comes from the gate, not the model</text>
+  <!-- Counterfactual callout -->
+  <rect x="40" y="432" width="530" height="118" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" rx="10"/>
+  <text x="60" y="457" class="boxlabel" fill="#14532d">Counterfactual: same model, same 39 tasks, same live ledger</text>
+  <text x="60" y="481" class="metric" fill="#991b1b">Gate OFF  ·  39 posted  ·  7 WRONG entries now in the ledger</text>
+  <text x="60" y="503" class="metric" fill="#14532d">Gate ON   ·  32 posted  ·  0 wrong entries</text>
+  <text x="60" y="527" class="boxlabel" fill="#14532d" font-size="14">7 wrong writes become 0. The model did not get better; the ledger did.</text>
+  <text x="60" y="544" class="boxsub">measured live (39 tasks, on ECS): 8 model mistakes across 2 models, 8 caught, 0 wrong writes</text>
 
   <!-- Cloud band -->
   <rect x="40" y="560" width="1220" height="180" class="cloud" rx="12"/>
@@ -134,7 +134,7 @@
 
   <g>
     <rect x="60" y="602" width="285" height="54" class="chiplive" rx="8"/>
-    <text x="202" y="624" text-anchor="middle" class="chipgreen">ECS  ·  agent runtime</text>
+    <text x="202" y="624" text-anchor="middle" class="chipgreen">ECS  ·  agent runtime + MCP server</text>
     <text x="202" y="644" text-anchor="middle" class="boxsub">i-t4n1i5p7bz4ypj122e6q · ap-southeast-1</text>
 
     <rect x="355" y="602" width="285" height="54" class="chiplive" rx="8"/>
@@ -147,7 +147,7 @@
 
     <rect x="945" y="602" width="285" height="54" class="chiplive" rx="8"/>
     <text x="1087" y="624" text-anchor="middle" class="chipgreen">Live Odoo 19  ·  system of record</text>
-    <text x="1087" y="644" text-anchor="middle" class="boxsub">2 real posted account.move records</text>
+    <text x="1087" y="644" text-anchor="middle" class="boxsub">3 real posted account.move (1 via MCP)</text>
 
     <rect x="60" y="666" width="560" height="40" fill="#f8fafc" stroke="#e2e8f0" rx="8"/>
     <text x="72" y="691" class="boxsub">Planned: OSS (document store) · Tablestore (tokens, audit log) · AnalyticDB (policy retrieval) · API Gateway</text>

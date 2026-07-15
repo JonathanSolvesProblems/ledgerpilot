@@ -49,9 +49,20 @@ class Config:
     odoo_mcp_server_url: str
 
 
+DEV_SIGNING_KEY = "dev-insecure-key"
+
+
+class InsecureConfig(Exception):
+    """Raised when a live-ERP configuration would run without a real signing key."""
+
+
 def load_config() -> Config:
     _load_dotenv()
-    return Config(
+    # `_load_dotenv` uses setdefault, so a blank line in .env (LEDGERPILOT_SIGNING_KEY=)
+    # sets the variable to "" and the `or` below is what falls back to the dev key.
+    signing_key = os.environ.get("LEDGERPILOT_SIGNING_KEY") or DEV_SIGNING_KEY
+
+    config = Config(
         dashscope_api_key=os.environ.get("DASHSCOPE_API_KEY", ""),
         dashscope_base_url=os.environ.get(
             "DASHSCOPE_BASE_URL",
@@ -59,7 +70,7 @@ def load_config() -> Config:
         ),
         planner_model=os.environ.get("LEDGERPILOT_PLANNER_MODEL", "qwen3.7-max"),
         vision_model=os.environ.get("LEDGERPILOT_VISION_MODEL", "qwen3-vl-plus"),
-        signing_key=os.environ.get("LEDGERPILOT_SIGNING_KEY", "dev-insecure-key"),
+        signing_key=signing_key,
         approval_threshold=Decimal(
             os.environ.get("LEDGERPILOT_APPROVAL_THRESHOLD", "10000")
         ),
@@ -69,3 +80,18 @@ def load_config() -> Config:
         odoo_api_key=os.environ.get("ODOO_API_KEY", ""),
         odoo_mcp_server_url=os.environ.get("ODOO_MCP_SERVER_URL", ""),
     )
+
+    # Fail closed. The approval token is the ONLY thing standing between a caller
+    # and a write to a real general ledger, and the MCP server exposes that write
+    # over the network. An HMAC keyed with a public constant from this repo (or
+    # with the empty string) authorizes nothing. So: the dev key is fine for the
+    # offline gate, the demo and the tests, and is refused the moment a live ERP
+    # is configured.
+    if config.odoo_url and config.signing_key == DEV_SIGNING_KEY:
+        raise InsecureConfig(
+            "A live Odoo is configured (ODOO_URL is set) but LEDGERPILOT_SIGNING_KEY "
+            "is missing, so approval tokens would be signed with a public default key "
+            "and anyone could forge one. Set a real signing key, e.g.\n"
+            '  python -c "import secrets; print(secrets.token_hex(32))"'
+        )
+    return config

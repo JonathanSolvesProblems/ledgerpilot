@@ -1,6 +1,6 @@
 # Why I refused to let an LLM write to the ledger
 
-LedgerPilot is a month-end-close agent. It reads the messy pile a finance team drowns in every month (bank statements, supplier invoices, approval emails) and proposes the journal entries that should be posted to the general ledger. The entire project is built around one decision I made on the first day and never walked back: the language model is allowed to *propose* an entry, and it is never allowed to *write* one.
+LedgerPilot is a month-end-close agent. It reads the messy pile a finance team drowns in every month (bank statements, supplier invoices) and proposes the journal entries that should be posted to the general ledger. The entire project is built around one decision I made on the first day and never walked back: the language model is allowed to *propose* an entry, and it is never allowed to *write* one.
 
 That sounds like a small architectural detail. It is actually the whole product.
 

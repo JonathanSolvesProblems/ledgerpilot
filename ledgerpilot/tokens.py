@@ -40,16 +40,25 @@ class ApprovalToken:
 
     @classmethod
     def from_str(cls, token: str) -> "ApprovalToken":
+        # A token arrives as untrusted text (a model relays it over MCP), so every
+        # malformed shape has to surface as TokenError, never as a raw TypeError:
+        # a JSON list decodes fine and then body["entry_hash"] raises TypeError,
+        # and a non-string signature would blow up later inside compare_digest.
         try:
-            raw = base64.urlsafe_b64decode(token.encode())
+            raw = base64.urlsafe_b64decode(str(token).encode())
             body = json.loads(raw)
-            return cls(
-                entry_hash=body["entry_hash"],
-                decision=body["decision"],
-                issued_for_ref=body["issued_for_ref"],
-                signature=body["signature"],
-            )
-        except (ValueError, KeyError) as exc:
+            if not isinstance(body, dict):
+                raise TokenError("Approval token is not an object.")
+            fields = {
+                k: body[k]
+                for k in ("entry_hash", "decision", "issued_for_ref", "signature")
+            }
+            if not all(isinstance(v, str) for v in fields.values()):
+                raise TokenError("Approval token fields must all be strings.")
+            return cls(**fields)
+        except TokenError:
+            raise
+        except (ValueError, KeyError, TypeError) as exc:
             raise TokenError(f"Malformed approval token: {exc}") from exc
 
 

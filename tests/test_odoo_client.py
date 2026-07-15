@@ -8,7 +8,6 @@ import pytest
 
 from ledgerpilot.config import Config
 from ledgerpilot.odoo_client import (
-    ModelStudioMcpClient,
     OdooClientError,
     XmlrpcOdooClient,
     build_odoo_client,
@@ -26,18 +25,11 @@ def blank_config(**overrides) -> Config:
 
 
 def test_factory_returns_expected_types():
-    assert isinstance(build_odoo_client(blank_config(), prefer="xmlrpc"), XmlrpcOdooClient)
-    assert isinstance(build_odoo_client(blank_config(), prefer="mcp"), ModelStudioMcpClient)
+    assert isinstance(build_odoo_client(blank_config()), XmlrpcOdooClient)
 
 
 def test_xmlrpc_client_requires_config():
     client = XmlrpcOdooClient(config=blank_config())
-    with pytest.raises(OdooClientError):
-        client.create_move({"ref": "X", "date": "2026-06-15", "narration": "", "line_ids": []})
-
-
-def test_mcp_client_requires_server_url():
-    client = ModelStudioMcpClient(config=blank_config(), mcp_server_url="")
     with pytest.raises(OdooClientError):
         client.create_move({"ref": "X", "date": "2026-06-15", "narration": "", "line_ids": []})
 
@@ -134,45 +126,3 @@ def test_xmlrpc_client_is_idempotent_server_side(monkeypatch):
     move_id = client.create_move(SAMPLE_PAYLOAD)
     assert move_id == 999                 # returned the existing move
     assert proxies[-1].created == []      # never posted again
-
-
-class FakeResponses:
-    def __init__(self, text):
-        self._text = text
-        self.calls = []
-
-    def create(self, **kwargs):
-        self.calls.append(kwargs)
-        return type("R", (), {"output_text": self._text})()
-
-
-class FakeOpenAI:
-    def __init__(self, text):
-        self.responses = FakeResponses(text)
-
-
-def test_mcp_client_drives_responses_api_and_parses_move_id():
-    client = ModelStudioMcpClient(
-        config=blank_config(dashscope_api_key="k"),
-        mcp_server_url="https://mcp.example/sse",
-    )
-    fake = FakeOpenAI('{"move_id": 99}')
-    client._client = fake  # inject transport
-    move_id = client.create_move(SAMPLE_PAYLOAD)
-    assert move_id == 99
-    # It must have attached the Odoo MCP server as an mcp tool.
-    call = fake.responses.calls[0]
-    assert any(t.get("type") == "mcp" and t.get("server_url", "").endswith("/sse")
-               for t in call["tools"])
-    assert "validate_write" in call["input"]
-    assert "execute_approved_write" in call["input"]
-
-
-def test_mcp_client_raises_on_unparseable_output():
-    client = ModelStudioMcpClient(
-        config=blank_config(dashscope_api_key="k"),
-        mcp_server_url="https://mcp.example/sse",
-    )
-    client._client = FakeOpenAI("sorry I could not do that")
-    with pytest.raises(OdooClientError):
-        client.create_move(SAMPLE_PAYLOAD)

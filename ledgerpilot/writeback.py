@@ -107,6 +107,9 @@ class OdooWriteBack:
                 "No Odoo client configured. Set ODOO_* env vars or inject a client. "
                 "The live Odoo instance is the write target."
             )
+        # Money is Decimal everywhere internally (models.py refuses to build it from
+        # a float). Odoo's XML-RPC monetary fields require float, so this is the one
+        # deliberate conversion, confined to the transport boundary and nowhere else.
         move_lines = [
             (
                 0,

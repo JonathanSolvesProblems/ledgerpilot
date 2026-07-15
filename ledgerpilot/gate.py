@@ -47,26 +47,51 @@ class Gate:
         state: LedgerState,
         accounts: dict | None = None,
         approval_threshold: Decimal = Decimal("10000.00"),
+        require_source: bool = False,
     ) -> None:
         self.state = state
         self.accounts = accounts if accounts is not None else ACCOUNTS
         self.approval_threshold = approval_threshold
+        # Reconciliation is the check that catches a balanced, plausible, WRONG
+        # entry, and it needs a source document to reconcile against. When no
+        # source is supplied it is skipped, which means a caller who simply omits
+        # the evidence turns off the most important check in the gate.
+        #
+        # That is tolerable where the caller is our own trusted code (the offline
+        # corpus, the demo). It is NOT tolerable where the caller is a language
+        # model choosing its own tool arguments, so the network-exposed MCP server
+        # sets require_source=True and refuses to evaluate without evidence.
+        self.require_source = require_source
 
     # --- individual checks -------------------------------------------------
 
     def _check_balance(self, entry: JournalEntry) -> CheckResult:
+        # Double entry means debits equal credits AND the entry actually moves
+        # value across both sides. A zero-line entry trivially "balances" (0 == 0),
+        # so balance alone is not enough: require a real debit and a real credit.
         diff = entry.total_debit - entry.total_credit
-        passed = diff == Decimal("0.00")
+        balanced = diff == Decimal("0.00")
+        moves_value = entry.total_debit > Decimal("0.00")
+        has_both_sides = (
+            any(ln.debit > 0 for ln in entry.lines)
+            and any(ln.credit > 0 for ln in entry.lines)
+        )
+        passed = balanced and moves_value and has_both_sides
+
+        if passed:
+            detail = "Debits equal credits."
+        elif not balanced:
+            detail = (
+                f"Out of balance by {diff:+} "
+                f"(debits {entry.total_debit}, credits {entry.total_credit})."
+            )
+        else:
+            detail = "Entry moves no value: it needs a debit side and a credit side."
         return CheckResult(
             check="balance",
             passed=passed,
             severity=Severity.ERROR,
-            detail=(
-                "Debits equal credits."
-                if passed
-                else f"Out of balance by {diff:+} "
-                f"(debits {entry.total_debit}, credits {entry.total_credit})."
-            ),
+            detail=detail,
         )
 
     def _check_account_validity(self, entry: JournalEntry) -> CheckResult:
@@ -96,24 +121,42 @@ class Gate:
         )
 
     def _check_no_self_contra(self, entry: JournalEntry) -> CheckResult:
+        # Per line: a single line may not debit and credit at once.
         offenders = [
             ln.account_code
             for ln in entry.lines
             if ln.debit > 0 and ln.credit > 0
         ]
+        # Across lines: an account may not appear on BOTH sides of the same entry.
+        # Dr 6100 5,000 / Cr 6100 5,000 balances, uses a real account, and moves
+        # nothing. It is a wash entry, and a per-line check alone waves it through.
+        debited = {ln.account_code for ln in entry.lines if ln.debit > 0}
+        credited = {ln.account_code for ln in entry.lines if ln.credit > 0}
+        both_sides = sorted(debited & credited)
+        offenders.extend(both_sides)
+
         passed = not offenders
         return CheckResult(
             check="no_self_contra",
             passed=passed,
             severity=Severity.ERROR,
             detail=(
-                "No line both debits and credits."
+                "No account appears on both sides."
                 if passed
-                else f"Lines debit and credit simultaneously: {sorted(set(offenders))}."
+                else f"Accounts debited and credited in the same entry: {sorted(set(offenders))}."
             ),
         )
 
     def _check_positive_amounts(self, entry: JournalEntry) -> CheckResult:
+        # An entry with no lines has nothing to be negative, so guard it here:
+        # otherwise every check passes vacuously and the gate approves a no-op.
+        if not entry.lines:
+            return CheckResult(
+                check="positive_amounts",
+                passed=False,
+                severity=Severity.ERROR,
+                detail="Entry has no lines.",
+            )
         bad = [
             ln.account_code
             for ln in entry.lines
@@ -210,6 +253,15 @@ class Gate:
         self, entry: JournalEntry, source: SourceDocument | None
     ) -> CheckResult:
         if source is None:
+            # Fail closed when the caller is untrusted: "no evidence" must not be a
+            # way to switch off the check that catches wrong-but-plausible entries.
+            if self.require_source:
+                return CheckResult(
+                    check="reconciliation",
+                    passed=False,
+                    severity=Severity.ERROR,
+                    detail="No source document supplied; refusing to write without evidence.",
+                )
             return CheckResult(
                 check="reconciliation",
                 passed=True,
@@ -283,14 +335,22 @@ class Gate:
             self._check_reconciliation(entry, source),
         ]
 
-        hard_failure = any(
-            (not c.passed) and c.severity == Severity.ERROR for c in checks
+        # Fail closed. Any failing check rejects the entry, EXCEPT the approval
+        # threshold, whose failure means "a human must sign this", not "this is
+        # wrong". Keying off the check name rather than off Severity.ERROR means a
+        # check added later cannot silently fail open by carrying a softer
+        # severity: the only way to not reject is to pass.
+        threshold = next(
+            (c for c in checks if c.check == "approval_threshold"), None
         )
-        threshold = next(c for c in checks if c.check == "approval_threshold")
+        blocking = [
+            c for c in checks
+            if not c.passed and c.check != "approval_threshold"
+        ]
 
-        if hard_failure:
+        if blocking:
             decision = GateDecision.REJECTED
-        elif not threshold.passed:
+        elif threshold is None or not threshold.passed:
             # Rules otherwise pass but a human sign-off is missing.
             decision = GateDecision.NEEDS_HUMAN
         else:
