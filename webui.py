@@ -83,6 +83,7 @@ def _scenarios():
                                          _line("2000", credit="45000.00", desc="Accounts payable")],
                                   prepared_by="agent", approved_by=None),
             "source": None,
+            "approve_as": "cfo",
         },
     ]
 
@@ -91,20 +92,34 @@ def _fmt(value: Decimal) -> str:
     return f"{value:,.2f}"
 
 
-def _serialize(scn):
-    result = GATE.evaluate(scn["entry"], scn.get("source"))
-    decision = result.decision
+def _writeback(decision: GateDecision) -> dict:
     if decision == GateDecision.APPROVED:
-        writeback = {"status": "written",
-                     "text": "Signed with an HMAC token and written to Odoo as a posted account.move."}
-    elif decision == GateDecision.NEEDS_HUMAN:
-        writeback = {"status": "escalated",
-                     "text": "Held for a human approver. No token issued, nothing posted."}
-    else:
-        writeback = {"status": "refused",
-                     "text": "Refused. No token, no write. Nothing reaches the ledger."}
-    e = scn["entry"]
+        return {"status": "written",
+                "text": "Signed with an HMAC token and written to Odoo as a posted account.move."}
+    if decision == GateDecision.NEEDS_HUMAN:
+        return {"status": "escalated",
+                "text": "Held for a human approver. No token issued, nothing posted."}
+    return {"status": "refused",
+            "text": "Refused. No token, no write. Nothing reaches the ledger."}
+
+
+def _verdict(entry, source):
+    result = GATE.evaluate(entry, source)
     return {
+        "checks": [
+            {"check": c.check, "passed": c.passed, "severity": c.severity.value, "detail": c.detail}
+            for c in result.checks
+        ],
+        "decision": result.decision.value,
+        "writeback": _writeback(result.decision),
+    }, result.decision
+
+
+def _serialize(scn):
+    e = scn["entry"]
+    source = scn.get("source")
+    verdict, decision = _verdict(e, source)
+    data = {
         "id": scn["id"], "tab": scn["tab"], "doc": scn["doc"], "note": scn["note"],
         "trap": scn.get("trap", ""),
         "ref": e.ref,
@@ -117,13 +132,17 @@ def _serialize(scn):
              "credit": _fmt(ln.credit) if ln.credit > 0 else ""}
             for ln in e.lines
         ],
-        "checks": [
-            {"check": c.check, "passed": c.passed, "severity": c.severity.value, "detail": c.detail}
-            for c in result.checks
-        ],
-        "decision": decision.value,
-        "writeback": writeback,
+        **verdict,
     }
+    # Track 4 requires a human-in-the-loop checkpoint. When an entry is held, bake
+    # the post-approval verdict too, so a human can sign it in the UI and watch the
+    # same gate approve and write it. Nothing is faked: this is the gate re-run with
+    # the approver recorded.
+    approve_as = scn.get("approve_as")
+    if approve_as and decision == GateDecision.NEEDS_HUMAN:
+        signed_verdict, _ = _verdict(e.model_copy(update={"approved_by": approve_as}), source)
+        data["approved"] = {"by": approve_as, **signed_verdict}
+    return data
 
 
 HTML = r"""<!doctype html>
@@ -285,6 +304,20 @@ HTML = r"""<!doctype html>
   .wb{font:400 12.5px/1.5 var(--sans);color:var(--mut);opacity:0;transition:opacity .4s ease .1s;max-width:30ch}
   .wb.show{opacity:1} .wb b{color:var(--ink);font-weight:600}
 
+  /* human-in-the-loop checkpoint */
+  .hitl{margin-top:15px;padding-top:15px;border-top:1px dashed var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;opacity:0;transform:translateY(4px);
+    transition:opacity .4s ease,transform .4s ease}
+  .hitl.show{opacity:1;transform:none}
+  .hitl .cap{font:400 12px/1.45 var(--sans);color:var(--mut);max-width:23ch}
+  .hitl .cap b{color:var(--hold);font-weight:600}
+  .approve{cursor:pointer;font:600 13px/1 var(--sans);color:#161207;background:var(--brass);
+    border:1px solid var(--brass);padding:11px 16px;border-radius:9px;transition:.16s ease;
+    display:inline-flex;align-items:center;gap:9px;white-space:nowrap}
+  .approve:hover{filter:brightness(1.08)} .approve:active{transform:translateY(1px)}
+  .approve:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+  .approve svg{width:15px;height:15px;stroke:#161207;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
   /* proof band */
   .proof{margin-top:26px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
   @media (max-width:840px){.proof{grid-template-columns:1fr 1fr}}
@@ -358,6 +391,10 @@ HTML = r"""<!doctype html>
         <div class="stamp" id="stamp"></div>
         <div class="wb" id="wb"></div>
       </div>
+      <div class="hitl" id="hitl" hidden>
+        <button class="approve" id="approve" type="button"></button>
+        <span class="cap"><b>Human-in-the-loop checkpoint.</b> The agent paused above the autonomous limit. A human signs; the same gate then approves and writes.</span>
+      </div>
     </section>
   </main>
 
@@ -381,8 +418,9 @@ const nice={balance:'Balance',account_validity:'Account validity',no_self_contra
   approval_threshold:'Approval threshold',reconciliation:'Reconcile to source'};
 const stampWord={approved:['APPROVED','written to the ledger'],rejected:['REFUSED','nothing written'],
   needs_human:['HOLD','escalated to a human']};
+const PEN='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2 2 0 0 0-3-3L5 17v3z"/><path d="M14 7l3 3"/></svg>';
 const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
-let timers=[];
+let timers=[], current=null;
 
 const tabs=$('tabs');
 SCENARIOS.forEach((s,i)=>{const b=document.createElement('button');b.className='tab'+(i===0?' active':'');
@@ -391,8 +429,7 @@ SCENARIOS.forEach((s,i)=>{const b=document.createElement('button');b.className='
     b.classList.add('active');render(s);};
   tabs.appendChild(b);});
 
-function render(s){
-  timers.forEach(clearTimeout); timers=[];
+function paintPaper(s){
   $('ref').textContent=s.ref;
   $('doc').textContent=s.doc; $('amount').textContent=s.amount;
   $('note').textContent=s.note;
@@ -401,16 +438,18 @@ function render(s){
   $('lines').innerHTML=s.lines.map(l=>`<tr><td class="acct">${l.account}</td>
     <td>${l.desc?`<div class="d">${l.desc}</div>`:''}</td>
     <td class="r">${l.debit||'·'}</td><td class="r">${l.credit||'·'}</td></tr>`).join('');
+}
 
-  // re-run the flow pulse along the trust boundary
-  const p=$('pulse'); p.classList.remove('run'); void p.offsetWidth; if(!reduce) p.classList.add('run');
-
+// st = {checks, decision, writeback}; canApprove offers the human sign-off control.
+function runGate(s, st, canApprove){
+  timers.forEach(clearTimeout); timers=[];
   const checks=$('checks'); checks.innerHTML='';
-  const stamp=$('stamp'), wb=$('wb');
+  const stamp=$('stamp'), wb=$('wb'), hitl=$('hitl');
   stamp.className='stamp'; stamp.innerHTML=''; wb.className='wb'; wb.innerHTML='';
+  hitl.hidden=true; hitl.classList.remove('show');
 
   const step=reduce?0:105, base=reduce?0:260;
-  s.checks.forEach((c,i)=>{
+  st.checks.forEach((c,i)=>{
     const row=document.createElement('div'); row.className='check';
     const cls=c.passed?'ok':(c.severity==='warning'?'warn':'bad');
     const mark=c.passed?'✓':(c.severity==='warning'?'‖':'✕');
@@ -421,12 +460,30 @@ function render(s){
     timers.push(setTimeout(()=>row.classList.add('show'), base+step*i));
   });
   timers.push(setTimeout(()=>{
-    const [w,sub]=stampWord[s.decision]||[s.decision,''];
-    stamp.className='stamp show '+s.decision;
+    const [w,sub]=stampWord[st.decision]||[st.decision,''];
+    stamp.className='stamp show '+st.decision;
     stamp.innerHTML=`${w}<span class="ss">${sub}</span>`;
-    wb.className='wb show'; wb.innerHTML='<b>Write-back.</b> '+s.writeback.text;
-  }, base+step*s.checks.length+120));
+    wb.className='wb show'; wb.innerHTML='<b>Write-back.</b> '+st.writeback.text;
+    if(canApprove){
+      $('approve').innerHTML=PEN+'Sign as '+s.approved.by.toUpperCase()+' &amp; post';
+      hitl.hidden=false; requestAnimationFrame(()=>hitl.classList.add('show'));
+    }
+  }, base+step*st.checks.length+120));
 }
+
+function render(s){
+  current=s;
+  paintPaper(s);
+  const p=$('pulse'); p.classList.remove('run'); void p.offsetWidth; if(!reduce) p.classList.add('run');
+  runGate(s, {checks:s.checks,decision:s.decision,writeback:s.writeback}, !!s.approved);
+}
+
+$('approve').onclick=()=>{
+  const s=current; if(!s||!s.approved) return;
+  $('appr').textContent=s.approved.by+' · signed';
+  runGate(s, s.approved, false);
+};
+
 render(SCENARIOS[0]);
 </script>
 </body>

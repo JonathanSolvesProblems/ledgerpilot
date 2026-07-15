@@ -157,6 +157,20 @@
   .wb{font:400 12.5px/1.5 var(--sans);color:var(--mut);opacity:0;transition:opacity .4s ease .1s;max-width:30ch}
   .wb.show{opacity:1} .wb b{color:var(--ink);font-weight:600}
 
+  /* human-in-the-loop checkpoint */
+  .hitl{margin-top:15px;padding-top:15px;border-top:1px dashed var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;opacity:0;transform:translateY(4px);
+    transition:opacity .4s ease,transform .4s ease}
+  .hitl.show{opacity:1;transform:none}
+  .hitl .cap{font:400 12px/1.45 var(--sans);color:var(--mut);max-width:23ch}
+  .hitl .cap b{color:var(--hold);font-weight:600}
+  .approve{cursor:pointer;font:600 13px/1 var(--sans);color:#161207;background:var(--brass);
+    border:1px solid var(--brass);padding:11px 16px;border-radius:9px;transition:.16s ease;
+    display:inline-flex;align-items:center;gap:9px;white-space:nowrap}
+  .approve:hover{filter:brightness(1.08)} .approve:active{transform:translateY(1px)}
+  .approve:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+  .approve svg{width:15px;height:15px;stroke:#161207;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
   /* proof band */
   .proof{margin-top:26px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
   @media (max-width:840px){.proof{grid-template-columns:1fr 1fr}}
@@ -230,6 +244,10 @@
         <div class="stamp" id="stamp"></div>
         <div class="wb" id="wb"></div>
       </div>
+      <div class="hitl" id="hitl" hidden>
+        <button class="approve" id="approve" type="button"></button>
+        <span class="cap"><b>Human-in-the-loop checkpoint.</b> The agent paused above the autonomous limit. A human signs; the same gate then approves and writes.</span>
+      </div>
     </section>
   </main>
 
@@ -246,15 +264,16 @@
 </div>
 
 <script>
-const SCENARIOS = [{"id": "clean", "tab": "Clean invoice", "doc": "INV-RENT-06 \u00b7 Office rent \u00b7 pay from bank", "note": "Qwen reads the invoice and books rent to Rent expense (6100), paid from Cash (1000). Every check holds.", "trap": "", "ref": "JE-301", "amount": "4,500.00", "prepared_by": "agent", "approved_by": "controller", "lines": [{"account": "6100", "desc": "Rent expense", "debit": "4,500.00", "credit": ""}, {"account": "1000", "desc": "Cash", "debit": "", "credit": "4,500.00"}], "checks": [{"check": "balance", "passed": true, "severity": "error", "detail": "Debits equal credits."}, {"check": "account_validity", "passed": true, "severity": "error", "detail": "All accounts exist and are postable."}, {"check": "no_self_contra", "passed": true, "severity": "error", "detail": "No account appears on both sides."}, {"check": "positive_amounts", "passed": true, "severity": "error", "detail": "All lines carry a positive debit or credit."}, {"check": "period_lock", "passed": true, "severity": "error", "detail": "Period 2026-06 is open."}, {"check": "segregation", "passed": true, "severity": "info", "detail": "Approved by authorized 'controller', distinct from preparer."}, {"check": "approval_threshold", "passed": true, "severity": "info", "detail": "Amount 4500.00 within autonomous limit 10000.00."}, {"check": "reconciliation", "passed": true, "severity": "error", "detail": "Entry reconciles to document INV-RENT-06."}], "decision": "approved", "writeback": {"status": "written", "text": "Signed with an HMAC token and written to Odoo as a posted account.move."}}, {"id": "wrong_account", "tab": "Wrong account", "doc": "INV-RENT-06 \u00b7 Office rent \u00b7 pay from bank", "note": "Qwen balances it perfectly, but books the rent to Bank fees (6900). Debits equal credits and every account is real.", "trap": "A trial balance passes this. Only reconciliation to the source invoice catches it.", "ref": "JE-300", "amount": "4,500.00", "prepared_by": "agent", "approved_by": "controller", "lines": [{"account": "6900", "desc": "Rent, booked to the WRONG account", "debit": "4,500.00", "credit": ""}, {"account": "1000", "desc": "Cash", "debit": "", "credit": "4,500.00"}], "checks": [{"check": "balance", "passed": true, "severity": "error", "detail": "Debits equal credits."}, {"check": "account_validity", "passed": true, "severity": "error", "detail": "All accounts exist and are postable."}, {"check": "no_self_contra", "passed": true, "severity": "error", "detail": "No account appears on both sides."}, {"check": "positive_amounts", "passed": true, "severity": "error", "detail": "All lines carry a positive debit or credit."}, {"check": "period_lock", "passed": true, "severity": "error", "detail": "Period 2026-06 is open."}, {"check": "segregation", "passed": true, "severity": "info", "detail": "Approved by authorized 'controller', distinct from preparer."}, {"check": "approval_threshold", "passed": true, "severity": "info", "detail": "Amount 4500.00 within autonomous limit 10000.00."}, {"check": "reconciliation", "passed": false, "severity": "error", "detail": "Does not reconcile to INV-RENT-06: debit accounts ['6900'] not permitted for invoice (allowed ['6100'])."}], "decision": "rejected", "writeback": {"status": "refused", "text": "Refused. No token, no write. Nothing reaches the ledger."}}, {"id": "unbalanced", "tab": "Out of balance", "doc": "Utilities statement \u00b7 pay from bank", "note": "A transposed digit: 1,230.00 debited, 1,320.00 credited. Debits and credits no longer tie.", "trap": "", "ref": "JE-302", "amount": "1,320.00", "prepared_by": "agent", "approved_by": "controller", "lines": [{"account": "6200", "desc": "Utilities expense", "debit": "1,230.00", "credit": ""}, {"account": "1000", "desc": "Cash", "debit": "", "credit": "1,320.00"}], "checks": [{"check": "balance", "passed": false, "severity": "error", "detail": "Out of balance by -90.00 (debits 1230.00, credits 1320.00)."}, {"check": "account_validity", "passed": true, "severity": "error", "detail": "All accounts exist and are postable."}, {"check": "no_self_contra", "passed": true, "severity": "error", "detail": "No account appears on both sides."}, {"check": "positive_amounts", "passed": true, "severity": "error", "detail": "All lines carry a positive debit or credit."}, {"check": "period_lock", "passed": true, "severity": "error", "detail": "Period 2026-06 is open."}, {"check": "segregation", "passed": true, "severity": "info", "detail": "Approved by authorized 'controller', distinct from preparer."}, {"check": "approval_threshold", "passed": true, "severity": "info", "detail": "Amount 1320.00 within autonomous limit 10000.00."}, {"check": "reconciliation", "passed": true, "severity": "info", "detail": "No source document supplied; reconciliation skipped."}], "decision": "rejected", "writeback": {"status": "refused", "text": "Refused. No token, no write. Nothing reaches the ledger."}}, {"id": "escalate", "tab": "Large entry", "doc": "Server hardware \u00b7 on account", "note": "Balanced, valid, and reconciled, but 45,000.00 is over the autonomous limit, so it is held for a human.", "trap": "", "ref": "JE-303", "amount": "45,000.00", "prepared_by": "agent", "approved_by": "pending sign-off", "lines": [{"account": "1500", "desc": "Fixed assets", "debit": "45,000.00", "credit": ""}, {"account": "2000", "desc": "Accounts payable", "debit": "", "credit": "45,000.00"}], "checks": [{"check": "balance", "passed": true, "severity": "error", "detail": "Debits equal credits."}, {"check": "account_validity", "passed": true, "severity": "error", "detail": "All accounts exist and are postable."}, {"check": "no_self_contra", "passed": true, "severity": "error", "detail": "No account appears on both sides."}, {"check": "positive_amounts", "passed": true, "severity": "error", "detail": "All lines carry a positive debit or credit."}, {"check": "period_lock", "passed": true, "severity": "error", "detail": "Period 2026-06 is open."}, {"check": "segregation", "passed": true, "severity": "info", "detail": "No approver recorded yet."}, {"check": "approval_threshold", "passed": false, "severity": "warning", "detail": "Amount 45000.00 exceeds 10000.00; human approval required."}, {"check": "reconciliation", "passed": true, "severity": "info", "detail": "No source document supplied; reconciliation skipped."}], "decision": "needs_human", "writeback": {"status": "escalated", "text": "Held for a human approver. No token issued, nothing posted."}}];
+const SCENARIOS = [{"id": "clean", "tab": "Clean invoice", "doc": "INV-RENT-06 \u00b7 Office rent \u00b7 pay from bank", "note": "Qwen reads the invoice and books rent to Rent expense (6100), paid from Cash (1000). Every check holds.", "trap": "", "ref": "JE-301", "amount": "4,500.00", "prepared_by": "agent", "approved_by": "controller", "lines": [{"account": "6100", "desc": "Rent expense", "debit": "4,500.00", "credit": ""}, {"account": "1000", "desc": "Cash", "debit": "", "credit": "4,500.00"}], "checks": [{"check": "balance", "passed": true, "severity": "error", "detail": "Debits equal credits."}, {"check": "account_validity", "passed": true, "severity": "error", "detail": "All accounts exist and are postable."}, {"check": "no_self_contra", "passed": true, "severity": "error", "detail": "No account appears on both sides."}, {"check": "positive_amounts", "passed": true, "severity": "error", "detail": "All lines carry a positive debit or credit."}, {"check": "period_lock", "passed": true, "severity": "error", "detail": "Period 2026-06 is open."}, {"check": "segregation", "passed": true, "severity": "info", "detail": "Approved by authorized 'controller', distinct from preparer."}, {"check": "approval_threshold", "passed": true, "severity": "info", "detail": "Amount 4500.00 within autonomous limit 10000.00."}, {"check": "reconciliation", "passed": true, "severity": "error", "detail": "Entry reconciles to document INV-RENT-06."}], "decision": "approved", "writeback": {"status": "written", "text": "Signed with an HMAC token and written to Odoo as a posted account.move."}}, {"id": "wrong_account", "tab": "Wrong account", "doc": "INV-RENT-06 \u00b7 Office rent \u00b7 pay from bank", "note": "Qwen balances it perfectly, but books the rent to Bank fees (6900). Debits equal credits and every account is real.", "trap": "A trial balance passes this. Only reconciliation to the source invoice catches it.", "ref": "JE-300", "amount": "4,500.00", "prepared_by": "agent", "approved_by": "controller", "lines": [{"account": "6900", "desc": "Rent, booked to the WRONG account", "debit": "4,500.00", "credit": ""}, {"account": "1000", "desc": "Cash", "debit": "", "credit": "4,500.00"}], "checks": [{"check": "balance", "passed": true, "severity": "error", "detail": "Debits equal credits."}, {"check": "account_validity", "passed": true, "severity": "error", "detail": "All accounts exist and are postable."}, {"check": "no_self_contra", "passed": true, "severity": "error", "detail": "No account appears on both sides."}, {"check": "positive_amounts", "passed": true, "severity": "error", "detail": "All lines carry a positive debit or credit."}, {"check": "period_lock", "passed": true, "severity": "error", "detail": "Period 2026-06 is open."}, {"check": "segregation", "passed": true, "severity": "info", "detail": "Approved by authorized 'controller', distinct from preparer."}, {"check": "approval_threshold", "passed": true, "severity": "info", "detail": "Amount 4500.00 within autonomous limit 10000.00."}, {"check": "reconciliation", "passed": false, "severity": "error", "detail": "Does not reconcile to INV-RENT-06: debit accounts ['6900'] not permitted for invoice (allowed ['6100'])."}], "decision": "rejected", "writeback": {"status": "refused", "text": "Refused. No token, no write. Nothing reaches the ledger."}}, {"id": "unbalanced", "tab": "Out of balance", "doc": "Utilities statement \u00b7 pay from bank", "note": "A transposed digit: 1,230.00 debited, 1,320.00 credited. Debits and credits no longer tie.", "trap": "", "ref": "JE-302", "amount": "1,320.00", "prepared_by": "agent", "approved_by": "controller", "lines": [{"account": "6200", "desc": "Utilities expense", "debit": "1,230.00", "credit": ""}, {"account": "1000", "desc": "Cash", "debit": "", "credit": "1,320.00"}], "checks": [{"check": "balance", "passed": false, "severity": "error", "detail": "Out of balance by -90.00 (debits 1230.00, credits 1320.00)."}, {"check": "account_validity", "passed": true, "severity": "error", "detail": "All accounts exist and are postable."}, {"check": "no_self_contra", "passed": true, "severity": "error", "detail": "No account appears on both sides."}, {"check": "positive_amounts", "passed": true, "severity": "error", "detail": "All lines carry a positive debit or credit."}, {"check": "period_lock", "passed": true, "severity": "error", "detail": "Period 2026-06 is open."}, {"check": "segregation", "passed": true, "severity": "info", "detail": "Approved by authorized 'controller', distinct from preparer."}, {"check": "approval_threshold", "passed": true, "severity": "info", "detail": "Amount 1320.00 within autonomous limit 10000.00."}, {"check": "reconciliation", "passed": true, "severity": "info", "detail": "No source document supplied; reconciliation skipped."}], "decision": "rejected", "writeback": {"status": "refused", "text": "Refused. No token, no write. Nothing reaches the ledger."}}, {"id": "escalate", "tab": "Large entry", "doc": "Server hardware \u00b7 on account", "note": "Balanced, valid, and reconciled, but 45,000.00 is over the autonomous limit, so it is held for a human.", "trap": "", "ref": "JE-303", "amount": "45,000.00", "prepared_by": "agent", "approved_by": "pending sign-off", "lines": [{"account": "1500", "desc": "Fixed assets", "debit": "45,000.00", "credit": ""}, {"account": "2000", "desc": "Accounts payable", "debit": "", "credit": "45,000.00"}], "checks": [{"check": "balance", "passed": true, "severity": "error", "detail": "Debits equal credits."}, {"check": "account_validity", "passed": true, "severity": "error", "detail": "All accounts exist and are postable."}, {"check": "no_self_contra", "passed": true, "severity": "error", "detail": "No account appears on both sides."}, {"check": "positive_amounts", "passed": true, "severity": "error", "detail": "All lines carry a positive debit or credit."}, {"check": "period_lock", "passed": true, "severity": "error", "detail": "Period 2026-06 is open."}, {"check": "segregation", "passed": true, "severity": "info", "detail": "No approver recorded yet."}, {"check": "approval_threshold", "passed": false, "severity": "warning", "detail": "Amount 45000.00 exceeds 10000.00; human approval required."}, {"check": "reconciliation", "passed": true, "severity": "info", "detail": "No source document supplied; reconciliation skipped."}], "decision": "needs_human", "writeback": {"status": "escalated", "text": "Held for a human approver. No token issued, nothing posted."}, "approved": {"by": "cfo", "checks": [{"check": "balance", "passed": true, "severity": "error", "detail": "Debits equal credits."}, {"check": "account_validity", "passed": true, "severity": "error", "detail": "All accounts exist and are postable."}, {"check": "no_self_contra", "passed": true, "severity": "error", "detail": "No account appears on both sides."}, {"check": "positive_amounts", "passed": true, "severity": "error", "detail": "All lines carry a positive debit or credit."}, {"check": "period_lock", "passed": true, "severity": "error", "detail": "Period 2026-06 is open."}, {"check": "segregation", "passed": true, "severity": "info", "detail": "Approved by authorized 'cfo', distinct from preparer."}, {"check": "approval_threshold", "passed": true, "severity": "warning", "detail": "Amount 45000.00 exceeds 10000.00; human approval present (cfo)."}, {"check": "reconciliation", "passed": true, "severity": "info", "detail": "No source document supplied; reconciliation skipped."}], "decision": "approved", "writeback": {"status": "written", "text": "Signed with an HMAC token and written to Odoo as a posted account.move."}}}];
 const $=id=>document.getElementById(id);
 const nice={balance:'Balance',account_validity:'Account validity',no_self_contra:'No self-contra',
   positive_amounts:'Positive amounts',period_lock:'Period lock',segregation:'Segregation of duties',
   approval_threshold:'Approval threshold',reconciliation:'Reconcile to source'};
 const stampWord={approved:['APPROVED','written to the ledger'],rejected:['REFUSED','nothing written'],
   needs_human:['HOLD','escalated to a human']};
+const PEN='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2 2 0 0 0-3-3L5 17v3z"/><path d="M14 7l3 3"/></svg>';
 const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
-let timers=[];
+let timers=[], current=null;
 
 const tabs=$('tabs');
 SCENARIOS.forEach((s,i)=>{const b=document.createElement('button');b.className='tab'+(i===0?' active':'');
@@ -263,8 +282,7 @@ SCENARIOS.forEach((s,i)=>{const b=document.createElement('button');b.className='
     b.classList.add('active');render(s);};
   tabs.appendChild(b);});
 
-function render(s){
-  timers.forEach(clearTimeout); timers=[];
+function paintPaper(s){
   $('ref').textContent=s.ref;
   $('doc').textContent=s.doc; $('amount').textContent=s.amount;
   $('note').textContent=s.note;
@@ -273,16 +291,18 @@ function render(s){
   $('lines').innerHTML=s.lines.map(l=>`<tr><td class="acct">${l.account}</td>
     <td>${l.desc?`<div class="d">${l.desc}</div>`:''}</td>
     <td class="r">${l.debit||'·'}</td><td class="r">${l.credit||'·'}</td></tr>`).join('');
+}
 
-  // re-run the flow pulse along the trust boundary
-  const p=$('pulse'); p.classList.remove('run'); void p.offsetWidth; if(!reduce) p.classList.add('run');
-
+// st = {checks, decision, writeback}; canApprove offers the human sign-off control.
+function runGate(s, st, canApprove){
+  timers.forEach(clearTimeout); timers=[];
   const checks=$('checks'); checks.innerHTML='';
-  const stamp=$('stamp'), wb=$('wb');
+  const stamp=$('stamp'), wb=$('wb'), hitl=$('hitl');
   stamp.className='stamp'; stamp.innerHTML=''; wb.className='wb'; wb.innerHTML='';
+  hitl.hidden=true; hitl.classList.remove('show');
 
   const step=reduce?0:105, base=reduce?0:260;
-  s.checks.forEach((c,i)=>{
+  st.checks.forEach((c,i)=>{
     const row=document.createElement('div'); row.className='check';
     const cls=c.passed?'ok':(c.severity==='warning'?'warn':'bad');
     const mark=c.passed?'✓':(c.severity==='warning'?'‖':'✕');
@@ -293,12 +313,30 @@ function render(s){
     timers.push(setTimeout(()=>row.classList.add('show'), base+step*i));
   });
   timers.push(setTimeout(()=>{
-    const [w,sub]=stampWord[s.decision]||[s.decision,''];
-    stamp.className='stamp show '+s.decision;
+    const [w,sub]=stampWord[st.decision]||[st.decision,''];
+    stamp.className='stamp show '+st.decision;
     stamp.innerHTML=`${w}<span class="ss">${sub}</span>`;
-    wb.className='wb show'; wb.innerHTML='<b>Write-back.</b> '+s.writeback.text;
-  }, base+step*s.checks.length+120));
+    wb.className='wb show'; wb.innerHTML='<b>Write-back.</b> '+st.writeback.text;
+    if(canApprove){
+      $('approve').innerHTML=PEN+'Sign as '+s.approved.by.toUpperCase()+' &amp; post';
+      hitl.hidden=false; requestAnimationFrame(()=>hitl.classList.add('show'));
+    }
+  }, base+step*st.checks.length+120));
 }
+
+function render(s){
+  current=s;
+  paintPaper(s);
+  const p=$('pulse'); p.classList.remove('run'); void p.offsetWidth; if(!reduce) p.classList.add('run');
+  runGate(s, {checks:s.checks,decision:s.decision,writeback:s.writeback}, !!s.approved);
+}
+
+$('approve').onclick=()=>{
+  const s=current; if(!s||!s.approved) return;
+  $('appr').textContent=s.approved.by+' · signed';
+  runGate(s, s.approved, false);
+};
+
 render(SCENARIOS[0]);
 </script>
 </body>
