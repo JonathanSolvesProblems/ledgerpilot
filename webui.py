@@ -2,9 +2,14 @@
 
 Runs the REAL deterministic gate on a handful of close scenarios and bakes the
 actual results into a single `web/index.html`. Open that file in a browser: pick
-a scenario and watch the eight gate checks light up green or red, the decision
-badge resolve, and the governed write-back happen. The results are not faked;
-they are this project's gate evaluating real entries.
+a scenario and watch the eight gate checks scan through, a verdict stamp land on
+the document, and the governed write-back happen. The results are not faked; they
+are this project's gate evaluating real entries.
+
+The design is deliberate: a warm parchment journal voucher (the source document)
+on a dark control desk, passing through the deterministic gate. Numbers are set in
+a monospace ledger face; the only path from the document to the ledger runs through
+the gate, which is the whole thesis made visual.
 
 Run:  python webui.py    ->    web/index.html
 """
@@ -37,21 +42,22 @@ def _scenarios():
         {
             "id": "clean",
             "tab": "Clean invoice",
-            "doc": "Invoice INV-RENT-06 · Office rent · 4,500.00 · pay from bank",
-            "note": "Qwen reads the invoice and posts rent to Rent expense (6100), paid from Cash (1000).",
+            "doc": "INV-RENT-06 · Office rent · pay from bank",
+            "note": "Qwen reads the invoice and books rent to Rent expense (6100), paid from Cash (1000). Every check holds.",
             "entry": JournalEntry(ref="JE-301", entry_date=OPEN, memo="June office rent",
-                                  lines=[_line("6100", debit="4500.00", desc="Rent"),
+                                  lines=[_line("6100", debit="4500.00", desc="Rent expense"),
                                          _line("1000", credit="4500.00", desc="Cash")],
                                   prepared_by="agent", approved_by="controller", source_doc_id="INV-RENT-06"),
             "source": RENT_SRC,
         },
         {
             "id": "wrong_account",
-            "tab": "Wrong account (the save)",
-            "doc": "Invoice INV-RENT-06 · Office rent · 4,500.00 · pay from bank",
-            "note": "Qwen balances it perfectly, but posts the rent to Bank fees (6900). A trial balance would wave it through.",
+            "tab": "Wrong account",
+            "doc": "INV-RENT-06 · Office rent · pay from bank",
+            "note": "Qwen balances it perfectly, but books the rent to Bank fees (6900). Debits equal credits and every account is real.",
+            "trap": "A trial balance passes this. Only reconciliation to the source invoice catches it.",
             "entry": JournalEntry(ref="JE-300", entry_date=OPEN, memo="June office rent (misposted)",
-                                  lines=[_line("6900", debit="4500.00", desc="Rent booked to WRONG account"),
+                                  lines=[_line("6900", debit="4500.00", desc="Rent, booked to the WRONG account"),
                                          _line("1000", credit="4500.00", desc="Cash")],
                                   prepared_by="agent", approved_by="controller", source_doc_id="INV-RENT-06"),
             "source": RENT_SRC,
@@ -59,42 +65,57 @@ def _scenarios():
         {
             "id": "unbalanced",
             "tab": "Out of balance",
-            "doc": "Statement · Utilities · 1,230.00 · pay from bank",
-            "note": "A transposed digit: debits and credits no longer tie.",
-            "entry": JournalEntry(ref="JE-302", entry_date=OPEN, memo="Utilities (transposed)",
-                                  lines=[_line("6200", debit="1230.00"), _line("1000", credit="1320.00")],
+            "doc": "Utilities statement · pay from bank",
+            "note": "A transposed digit: 1,230.00 debited, 1,320.00 credited. Debits and credits no longer tie.",
+            "entry": JournalEntry(ref="JE-302", entry_date=OPEN, memo="Utilities (transposed digit)",
+                                  lines=[_line("6200", debit="1230.00", desc="Utilities expense"),
+                                         _line("1000", credit="1320.00", desc="Cash")],
                                   prepared_by="agent", approved_by="controller"),
             "source": None,
         },
         {
             "id": "escalate",
-            "tab": "Large entry (human)",
-            "doc": "Invoice · Server hardware · 45,000.00 · on account",
-            "note": "Balanced and valid, but above the autonomous limit, so it needs a human sign-off.",
+            "tab": "Large entry",
+            "doc": "Server hardware · on account",
+            "note": "Balanced, valid, and reconciled, but 45,000.00 is over the autonomous limit, so it is held for a human.",
             "entry": JournalEntry(ref="JE-303", entry_date=OPEN, memo="Server hardware purchase",
-                                  lines=[_line("1500", debit="45000.00"), _line("2000", credit="45000.00")],
+                                  lines=[_line("1500", debit="45000.00", desc="Fixed assets"),
+                                         _line("2000", credit="45000.00", desc="Accounts payable")],
                                   prepared_by="agent", approved_by=None),
             "source": None,
         },
     ]
 
 
+def _fmt(value: Decimal) -> str:
+    return f"{value:,.2f}"
+
+
 def _serialize(scn):
     result = GATE.evaluate(scn["entry"], scn.get("source"))
     decision = result.decision
     if decision == GateDecision.APPROVED:
-        writeback = {"status": "written", "text": "Signed with an HMAC token and written to Odoo (account.move)."}
+        writeback = {"status": "written",
+                     "text": "Signed with an HMAC token and written to Odoo as a posted account.move."}
     elif decision == GateDecision.NEEDS_HUMAN:
-        writeback = {"status": "escalated", "text": "Escalated to a human approver. Held, nothing posted."}
+        writeback = {"status": "escalated",
+                     "text": "Held for a human approver. No token issued, nothing posted."}
     else:
-        writeback = {"status": "refused", "text": "Refused. Routed to the review queue. Nothing reaches the ledger."}
+        writeback = {"status": "refused",
+                     "text": "Refused. No token, no write. Nothing reaches the ledger."}
+    e = scn["entry"]
     return {
         "id": scn["id"], "tab": scn["tab"], "doc": scn["doc"], "note": scn["note"],
+        "trap": scn.get("trap", ""),
+        "ref": e.ref,
+        "amount": _fmt(e.amount),
+        "prepared_by": e.prepared_by,
+        "approved_by": e.approved_by or "pending sign-off",
         "lines": [
             {"account": ln.account_code, "desc": ln.description,
-             "debit": str(ln.debit) if ln.debit > 0 else "",
-             "credit": str(ln.credit) if ln.credit > 0 else ""}
-            for ln in scn["entry"].lines
+             "debit": _fmt(ln.debit) if ln.debit > 0 else "",
+             "credit": _fmt(ln.credit) if ln.credit > 0 else ""}
+            for ln in e.lines
         ],
         "checks": [
             {"check": c.check, "passed": c.passed, "severity": c.severity.value, "detail": c.detail}
@@ -110,135 +131,301 @@ HTML = r"""<!doctype html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>LedgerPilot</title>
+<title>LedgerPilot — the gate is the only path to a write</title>
+<meta name="description" content="An autonomous month-end-close agent on Qwen Cloud. Qwen proposes journal entries; a deterministic gate is the only path to a write. Same model, same tasks: gate off, 7 wrong entries hit the ledger; gate on, 0."/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36' fill='none' stroke='%23c9a24b' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='5' y1='12' x2='16' y2='12'/%3E%3Cline x1='5' y1='18' x2='16' y2='18'/%3E%3Cline x1='5' y1='24' x2='13' y2='24'/%3E%3Cline x1='20' y1='5' x2='20' y2='31' opacity='.6'/%3E%3Cpath d='M24 18 l3.5 3.5 l6.5 -8.5'/%3E%3C/svg%3E"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
   :root{
-    --bg:#f6f7f9; --panel:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
-    --blue:#2563eb; --green:#16a34a; --greenbg:#f0fdf4; --red:#dc2626; --redbg:#fef2f2;
-    --amber:#b45309; --amberbg:#fffbeb; --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.06);
-  }
-  @media (prefers-color-scheme: dark){
-    :root{--bg:#0b1220;--panel:#0f172a;--ink:#e5e7eb;--muted:#94a3b8;--line:#1e293b;
-      --greenbg:#04231a;--redbg:#2a0f12;--amberbg:#241a06;--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4);}
+    --desk:#0e1113; --desk-2:#15191c; --panel:#14181b; --raised:#1a1f22;
+    --paper:#f3efe4; --paper-2:#ebe5d6; --paper-ink:#211f19; --paper-mut:#6c6656; --paper-rule:rgba(33,31,25,.10);
+    --ink:#e9e7e1; --mut:#8b938f; --dim:#5f6864; --line:#252b2e; --line-2:#2f3639;
+    --brass:#c9a24b; --brass-dim:#8a7237;
+    --pass:#43b074; --pass-dim:#1c4030; --pass-bg:rgba(67,176,116,.10);
+    --fail:#d95468; --fail-dim:#4a2029; --fail-bg:rgba(217,84,104,.10);
+    --hold:#d99a3a; --hold-bg:rgba(217,154,58,.10);
+    --disp:"Fraunces",Georgia,"Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code","Roboto Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);
-    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 56px}
-  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
-  h1{font-size:30px;margin:0;letter-spacing:-.5px}
-  .sub{color:var(--muted);font-size:15px}
-  .tag{margin-left:auto;font-size:12px;color:var(--muted);border:1px solid var(--line);padding:4px 10px;border-radius:999px}
-  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 20px}
-  .tab{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);
-    padding:9px 14px;border-radius:10px;font-size:13.5px;font-weight:600;transition:.15s}
-  .tab:hover{border-color:var(--blue)}
-  .tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
-  .grid{display:grid;grid-template-columns:1fr 1.15fr;gap:20px}
-  @media (max-width:820px){.grid{grid-template-columns:1fr}}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px 22px}
-  .card h2{font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
-  .doc{font-size:14px;color:var(--muted);border-left:3px solid var(--blue);padding:8px 12px;background:color-mix(in srgb,var(--blue) 6%,transparent);border-radius:0 8px 8px 0;margin-bottom:16px}
-  .note{font-size:13.5px;color:var(--muted);margin:0 0 16px}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--desk);color:var(--ink);font:15px/1.55 var(--sans);
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden}
+  /* faint control-desk vignette + grain */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(120% 80% at 50% -10%,rgba(201,162,75,.06),transparent 60%),
+      radial-gradient(100% 120% at 100% 110%,rgba(67,176,116,.04),transparent 55%)}
+  .grain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .wrap{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding:34px 24px 72px}
+
+  /* masthead */
+  .masthead{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:13px}
+  .mark{width:38px;height:38px;flex:0 0 38px;display:block}
+  .word{font:600 25px/1 var(--disp);letter-spacing:-.4px}
+  .tagline{font:400 12px/1.4 var(--mono);color:var(--mut);letter-spacing:.1px;margin-top:4px}
+  .badges{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}
+  .chip{font:500 11.5px/1 var(--mono);color:var(--mut);border:1px solid var(--line-2);
+    padding:7px 11px;border-radius:7px;letter-spacing:.2px;white-space:nowrap;display:flex;align-items:center;gap:7px}
+  .chip.live{color:var(--pass);border-color:var(--pass-dim)}
+  .chip.live i{width:6px;height:6px;border-radius:50%;background:var(--pass);
+    box-shadow:0 0 0 0 rgba(67,176,116,.5);animation:beat 2.2s ease-out infinite}
+  @keyframes beat{0%{box-shadow:0 0 0 0 rgba(67,176,116,.45)}70%{box-shadow:0 0 0 7px rgba(67,176,116,0)}100%{box-shadow:0 0 0 0 rgba(67,176,116,0)}}
+
+  /* lede + counterfactual */
+  .lede{display:grid;grid-template-columns:1.15fr .95fr;gap:30px;align-items:center;margin:30px 0 8px}
+  @media (max-width:840px){.lede{grid-template-columns:1fr;gap:22px}}
+  .thesis{margin:0;font:400 20px/1.5 var(--disp);color:var(--ink);max-width:32ch;text-wrap:pretty}
+  .thesis b{color:var(--brass);font-weight:600}
+  .cf{display:grid;grid-template-columns:auto auto auto;align-items:center;gap:18px;
+    background:linear-gradient(180deg,var(--raised),var(--panel));border:1px solid var(--line-2);
+    border-radius:16px;padding:20px 24px;position:relative}
+  .cf::after{content:"same model · same 39 close tasks · same live ledger";position:absolute;left:24px;bottom:9px;
+    font:500 10px/1 var(--mono);letter-spacing:.4px;color:var(--dim)}
+  .cf-arm{display:flex;flex-direction:column;gap:2px;padding-bottom:16px}
+  .cf-k{font:500 11px/1 var(--mono);letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
+  .cf-v{font:600 52px/1 var(--disp);letter-spacing:-1px}
+  .cf-u{font:400 11.5px/1.3 var(--sans);color:var(--mut);max-width:11ch}
+  .cf-arm.off .cf-v{color:var(--fail)} .cf-arm.on .cf-v{color:var(--pass)}
+  .cf-arrow{font:400 30px/1 var(--disp);color:var(--dim);padding-bottom:16px}
+
+  /* scenario picker — case files */
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:30px 0 18px}
+  .tab{cursor:pointer;font:500 13px/1 var(--sans);color:var(--mut);background:transparent;
+    border:1px solid var(--line-2);padding:11px 15px;border-radius:9px;transition:.18s ease;
+    display:flex;align-items:center;gap:8px}
+  .tab::before{content:"";width:6px;height:6px;border-radius:1px;background:var(--dim);transition:.18s}
+  .tab:hover{color:var(--ink);border-color:var(--dim)}
+  .tab:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+  .tab.active{color:var(--paper-ink);background:var(--brass);border-color:var(--brass);font-weight:600}
+  .tab.active::before{background:var(--paper-ink)}
+
+  /* stage: document -> seam -> gate */
+  .stage{display:grid;grid-template-columns:minmax(0,1fr) 52px minmax(0,1.02fr);align-items:stretch}
+  @media (max-width:840px){.stage{grid-template-columns:1fr;gap:16px}.seam{display:none}}
+
+  /* the parchment voucher */
+  .paper{background:linear-gradient(180deg,var(--paper),var(--paper-2));color:var(--paper-ink);
+    border-radius:12px;padding:22px 24px 20px;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 18px 40px -18px rgba(0,0,0,.7),0 2px 8px rgba(0,0,0,.3)}
+  .paper::before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:4px;background:var(--brass)}
+  /* ruled continuation of the ledger page, kept below the entry so it never crosses text */
+  .fill{flex:1 1 auto;min-height:40px;margin-top:12px;
+    background-image:repeating-linear-gradient(transparent 0 27px,var(--paper-rule) 27px 28px)}
+  .vhead{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1.5px solid rgba(33,31,25,.22);padding-bottom:9px;margin-bottom:2px}
+  .vhead .lbl{font:600 10.5px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--paper-mut)}
+  .vhead .ref{font:600 13px/1 var(--mono);color:var(--paper-ink)}
+  .doc{font:500 13.5px/1.45 var(--mono);color:var(--paper-ink);padding:12px 0 4px}
+  .amt-big{font:500 15px/1 var(--mono)}
+  .note{font:400 13px/1.5 var(--sans);color:#514c40;margin:2px 0 12px;max-width:52ch}
+  .trap{display:inline-flex;align-items:center;gap:7px;font:500 11.5px/1.35 var(--sans);color:#8a3a24;
+    background:rgba(190,90,50,.10);border:1px solid rgba(190,90,50,.28);border-radius:7px;padding:7px 10px;margin:0 0 12px}
+  .trap::before{content:"⚠";font-size:12px}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);font-size:13.5px}
-  th{color:var(--muted);font-weight:600;font-size:11.5px;letter-spacing:.4px;text-transform:uppercase}
-  td.amt{text-align:right;font-weight:600}
-  .gate h2{color:var(--red)}
-  .check{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px dashed var(--line);opacity:0;transform:translateY(6px);transition:.3s}
+  th{font:600 10px/1 var(--mono);letter-spacing:.6px;text-transform:uppercase;color:var(--paper-mut);
+    text-align:left;padding:0 0 7px;border-bottom:1px solid rgba(33,31,25,.2)}
+  th.r,td.r{text-align:right}
+  td{font:500 13.5px/1 var(--mono);color:var(--paper-ink);padding:10px 0;border-bottom:1px solid var(--paper-rule)}
+  td .d{font:400 11.5px/1.3 var(--sans);color:#6c6656;margin-top:3px}
+  td.acct{width:64px}
+  .vfoot{display:flex;gap:22px;margin-top:12px;padding-top:11px}
+  .vfoot div{font:400 11px/1.4 var(--sans);color:var(--paper-mut)}
+  .vfoot b{display:block;font:500 12.5px/1.3 var(--mono);color:var(--paper-ink);margin-top:2px}
+
+  /* the trust-boundary seam */
+  .seam{position:relative;display:flex;align-items:center;justify-content:center}
+  .seam::before{content:"";position:absolute;top:8px;bottom:8px;width:1px;
+    background:linear-gradient(180deg,transparent,var(--brass-dim) 18%,var(--brass-dim) 82%,transparent)}
+  .seam-label{position:absolute;font:600 9.5px/1 var(--mono);letter-spacing:2px;text-transform:uppercase;
+    color:var(--brass-dim);white-space:nowrap;transform:rotate(-90deg);
+    background:var(--desk);padding:6px 0}
+  .pulse{position:absolute;top:0;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;
+    background:var(--brass);box-shadow:0 0 10px 2px rgba(201,162,75,.7);opacity:0}
+  .pulse.run{animation:flow 1.15s cubic-bezier(.4,0,.5,1)}
+  @keyframes flow{0%{top:4%;opacity:0}15%{opacity:1}85%{opacity:1}100%{top:96%;opacity:0}}
+
+  /* the gate machine */
+  .gate{background:linear-gradient(180deg,var(--raised),var(--panel));border:1px solid var(--line-2);
+    border-radius:12px;padding:20px 22px;display:flex;flex-direction:column}
+  .ghead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+  .ghead .t{font:600 11px/1 var(--mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--brass)}
+  .ghead .s{font:400 11px/1 var(--mono);color:var(--dim)}
+  .checks{display:flex;flex-direction:column}
+  .check{display:flex;gap:12px;align-items:flex-start;padding:9px 8px;margin:0 -8px;border-radius:8px;
+    border-bottom:1px solid var(--line);opacity:0;transform:translateX(-6px);
+    transition:opacity .34s ease,transform .34s ease,background .3s}
   .check.show{opacity:1;transform:none}
-  .dot{flex:0 0 22px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff;margin-top:1px}
-  .dot.ok{background:var(--green)} .dot.bad{background:var(--red)} .dot.warn{background:var(--amber)}
-  .cname{font-weight:600;font-size:13.5px}
-  .cdetail{color:var(--muted);font-size:12.5px}
-  .decision{margin-top:18px;padding:14px 16px;border-radius:12px;font-weight:800;font-size:16px;letter-spacing:.4px;
-    display:flex;align-items:center;gap:10px;opacity:0;transform:scale(.97);transition:.3s}
-  .decision.show{opacity:1;transform:none}
-  .decision.approved{background:var(--greenbg);color:var(--green);border:1px solid var(--green)}
-  .decision.rejected{background:var(--redbg);color:var(--red);border:1px solid var(--red)}
-  .decision.needs_human{background:var(--amberbg);color:var(--amber);border:1px solid var(--amber)}
-  .wb{margin-top:12px;font-size:13.5px;color:var(--muted)}
-  .wb b{color:var(--ink)}
-  .metrics{margin-top:26px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-  @media (max-width:820px){.metrics{grid-template-columns:repeat(2,1fr)}}
-  .metric{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
-  .metric .n{font-size:26px;font-weight:800;letter-spacing:-.5px}
-  .metric .l{font-size:12px;color:var(--muted);margin-top:4px}
-  .metric.good .n{color:var(--green)}
-  .foot{margin-top:22px;color:var(--muted);font-size:12.5px;text-align:center}
+  .check.fail{background:var(--fail-bg)}
+  .led{flex:0 0 20px;width:20px;height:20px;border-radius:6px;display:grid;place-items:center;
+    font:800 11px/1 var(--sans);margin-top:1px;color:#0e1113;position:relative}
+  .led.ok{background:var(--pass)} .led.bad{background:var(--fail);color:#fff} .led.warn{background:var(--hold)}
+  .check.fail .led{box-shadow:0 0 0 0 rgba(217,84,104,.6);animation:ping 1.6s ease-out 2}
+  @keyframes ping{0%{box-shadow:0 0 0 0 rgba(217,84,104,.55)}70%{box-shadow:0 0 0 8px rgba(217,84,104,0)}100%{box-shadow:0 0 0 0 rgba(217,84,104,0)}}
+  .cn{font:500 13.5px/1.25 var(--sans);color:var(--ink)}
+  .cd{font:400 12px/1.4 var(--mono);color:var(--mut);margin-top:2px;letter-spacing:-.1px}
+  .check.fail .cd{color:#e78a97}
+
+  /* the verdict stamp */
+  .verdict{margin-top:auto;padding-top:20px;min-height:96px;display:flex;align-items:center;gap:18px}
+  .stamp{flex:0 0 auto;border:2.5px solid currentColor;border-radius:10px;padding:9px 16px;
+    font:700 22px/1 var(--disp);letter-spacing:1px;text-transform:uppercase;position:relative;
+    opacity:0;transform:rotate(-16deg) scale(1.7)}
+  .stamp .ss{display:block;font:500 9.5px/1 var(--mono);letter-spacing:1.5px;margin-top:5px;text-align:center;opacity:.85}
+  .stamp.show{animation:stampIn .46s cubic-bezier(.2,1.3,.5,1) forwards}
+  .stamp::after{content:"";position:absolute;inset:-7px;border:2px solid currentColor;border-radius:14px;opacity:0}
+  .stamp.show::after{animation:ring .5s ease-out .12s}
+  @keyframes stampIn{0%{opacity:0;transform:rotate(-16deg) scale(1.7)}
+    65%{opacity:1;transform:rotate(-4deg) scale(.9)}100%{opacity:1;transform:rotate(-4deg) scale(1)}}
+  @keyframes ring{0%{opacity:.55;transform:scale(.82)}100%{opacity:0;transform:scale(1.18)}}
+  .stamp.approved{color:var(--pass)} .stamp.rejected{color:var(--fail)} .stamp.needs_human{color:var(--hold)}
+  .wb{font:400 12.5px/1.5 var(--sans);color:var(--mut);opacity:0;transition:opacity .4s ease .1s;max-width:30ch}
+  .wb.show{opacity:1} .wb b{color:var(--ink);font-weight:600}
+
+  /* proof band */
+  .proof{margin-top:26px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
+  @media (max-width:840px){.proof{grid-template-columns:1fr 1fr}}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 17px}
+  .stat.feat{border-color:var(--brass-dim);background:linear-gradient(180deg,rgba(201,162,75,.06),var(--panel))}
+  .stat .n{font:600 27px/1 var(--disp);letter-spacing:-.5px}
+  .stat.feat .n{color:var(--pass)}
+  .stat .l{font:400 11.5px/1.4 var(--sans);color:var(--mut);margin-top:6px}
+  .repro{margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    font:400 12px/1.5 var(--sans);color:var(--dim);border-top:1px solid var(--line);padding-top:16px}
+  .repro code{font:500 12px/1 var(--mono);color:var(--brass);background:rgba(201,162,75,.08);
+    border:1px solid var(--line-2);border-radius:6px;padding:5px 8px}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+    .check{opacity:1;transform:none} .stamp{opacity:1;transform:rotate(-4deg)}
+  }
 </style>
 </head>
 <body>
+<div class="grain" aria-hidden="true"></div>
 <div class="wrap">
-  <header>
-    <h1>LedgerPilot</h1>
-    <span class="sub">Autonomous month-end-close agent on Qwen Cloud</span>
-    <span class="tag">Track 4 · Autopilot Agent</span>
+  <header class="masthead">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 36 36" fill="none" stroke="#c9a24b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="16" y2="12"/><line x1="5" y1="18" x2="16" y2="18"/><line x1="5" y1="24" x2="13" y2="24"/><line x1="20" y1="5" x2="20" y2="31" opacity=".55"/><path d="M24 18 l3.5 3.5 l6.5 -8.5"/></svg>
+      <div>
+        <div class="word">LedgerPilot</div>
+        <div class="tagline">autonomous month-end close · the gate is the only path to a write</div>
+      </div>
+    </div>
+    <div class="badges">
+      <span class="chip live"><i></i>backend live on Alibaba Cloud ECS</span>
+      <span class="chip">Track 4 · Autopilot Agent</span>
+    </div>
   </header>
-  <p class="sub" style="margin:2px 0 0">The model proposes. A deterministic gate is the only path to a write.</p>
 
-  <div class="tabs" id="tabs"></div>
+  <section class="lede">
+    <p class="thesis">Qwen drafts the journal entries. A deterministic gate of eight exact checks decides what reaches the ledger. <b>Same model, same 39 close tasks, same live ERP:</b></p>
+    <div class="cf" role="img" aria-label="Gate off: 7 wrong entries posted. Gate on: 0 wrong entries.">
+      <div class="cf-arm off"><span class="cf-k">gate off</span><span class="cf-v">7</span><span class="cf-u">wrong entries posted to the ledger</span></div>
+      <div class="cf-arrow">→</div>
+      <div class="cf-arm on"><span class="cf-k">gate on</span><span class="cf-v">0</span><span class="cf-u">wrong entries</span></div>
+    </div>
+  </section>
 
-  <div class="grid">
-    <div class="card">
-      <h2>Source &amp; proposed entry</h2>
-      <div class="doc" id="doc"></div>
+  <nav class="tabs" id="tabs" aria-label="close scenarios"></nav>
+
+  <main class="stage">
+    <article class="paper" id="paper" aria-label="source document and proposed entry">
+      <div class="vhead"><span class="lbl">Source &amp; proposed entry</span><span class="ref" id="ref"></span></div>
+      <div class="doc"><span id="doc"></span> · <span class="amt-big" id="amount"></span></div>
       <p class="note" id="note"></p>
-      <table><thead><tr><th>Account</th><th>Description</th><th class="amt">Debit</th><th class="amt">Credit</th></tr></thead>
-      <tbody id="lines"></tbody></table>
-    </div>
-    <div class="card gate">
-      <h2>Deterministic gate</h2>
-      <div id="checks"></div>
-      <div class="decision" id="decision"></div>
-      <div class="wb" id="wb"></div>
-    </div>
-  </div>
+      <div id="trap"></div>
+      <table>
+        <thead><tr><th class="acct">Acct</th><th>Description</th><th class="r">Debit</th><th class="r">Credit</th></tr></thead>
+        <tbody id="lines"></tbody>
+      </table>
+      <div class="vfoot">
+        <div>Prepared by<b id="prep"></b></div>
+        <div>Approved by<b id="appr"></b></div>
+      </div>
+      <div class="fill" aria-hidden="true"></div>
+    </article>
 
-  <div class="metrics">
-    <div class="metric good"><div class="n">0</div><div class="l">wrong entries written (measured live, both models)</div></div>
-    <div class="metric good"><div class="n">6 / 6</div><div class="l">real Qwen mistakes caught by the gate</div></div>
-    <div class="metric"><div class="n">97.4%</div><div class="l">Qwen3.7-Max accuracy · 39 close tasks</div></div>
-    <div class="metric"><div class="n">100%</div><div class="l">catch rate · 204-case offline stress-test</div></div>
+    <div class="seam" aria-hidden="true"><span class="seam-label">trust boundary</span><span class="pulse" id="pulse"></span></div>
+
+    <section class="gate" aria-label="deterministic gate">
+      <div class="ghead"><span class="t">Deterministic gate</span><span class="s">8 checks · no LLM</span></div>
+      <div class="checks" id="checks"></div>
+      <div class="verdict">
+        <div class="stamp" id="stamp"></div>
+        <div class="wb" id="wb"></div>
+      </div>
+    </section>
+  </main>
+
+  <section class="proof" aria-label="measured results">
+    <div class="stat feat"><div class="n">0</div><div class="l">wrong journal entries the gate let through, on live Qwen output</div></div>
+    <div class="stat"><div class="n">8 / 8</div><div class="l">real Qwen mistakes caught (two models, 39 tasks)</div></div>
+    <div class="stat"><div class="n">100%</div><div class="l">catch rate on the 204-case offline stress-test</div></div>
+    <div class="stat"><div class="n">3</div><div class="l">real entries posted to a live Odoo, one written by Qwen through MCP</div></div>
+  </section>
+  <div class="repro">
+    Every verdict above is this project's real gate evaluating a real entry.
+    <span>Reproduce:</span> <code>python -m eval.harness</code> <code>python scripts/counterfactual.py</code>
   </div>
-  <div class="foot">Every gate verdict below is this project's real gate evaluating a real entry. Reproduce with <b>python -m eval.harness</b>.</div>
 </div>
 
 <script>
 const SCENARIOS = /*SCENARIOS_JSON*/;
-const tabs=document.getElementById('tabs');
-const elDoc=document.getElementById('doc'), elNote=document.getElementById('note'),
-      elLines=document.getElementById('lines'), elChecks=document.getElementById('checks'),
-      elDec=document.getElementById('decision'), elWb=document.getElementById('wb');
+const $=id=>document.getElementById(id);
 const nice={balance:'Balance',account_validity:'Account validity',no_self_contra:'No self-contra',
   positive_amounts:'Positive amounts',period_lock:'Period lock',segregation:'Segregation of duties',
   approval_threshold:'Approval threshold',reconciliation:'Reconcile to source'};
-const decWord={approved:'APPROVED · written to the ledger',rejected:'REJECTED · nothing written',
-  needs_human:'NEEDS HUMAN · escalated'};
+const stampWord={approved:['APPROVED','written to the ledger'],rejected:['REFUSED','nothing written'],
+  needs_human:['HOLD','escalated to a human']};
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+let timers=[];
 
-SCENARIOS.forEach((s,i)=>{const b=document.createElement('div');b.className='tab'+(i===0?' active':'');
-  b.textContent=s.tab;b.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  b.classList.add('active');render(s);};tabs.appendChild(b);});
+const tabs=$('tabs');
+SCENARIOS.forEach((s,i)=>{const b=document.createElement('button');b.className='tab'+(i===0?' active':'');
+  b.type='button';b.textContent=s.tab;
+  b.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    b.classList.add('active');render(s);};
+  tabs.appendChild(b);});
 
 function render(s){
-  elDoc.textContent=s.doc; elNote.textContent=s.note;
-  elLines.innerHTML=s.lines.map(l=>`<tr><td>${l.account}</td><td>${l.desc||''}</td>
-    <td class="amt">${l.debit||''}</td><td class="amt">${l.credit||''}</td></tr>`).join('');
-  elChecks.innerHTML=''; elDec.className='decision'; elWb.innerHTML='';
+  timers.forEach(clearTimeout); timers=[];
+  $('ref').textContent=s.ref;
+  $('doc').textContent=s.doc; $('amount').textContent=s.amount;
+  $('note').textContent=s.note;
+  $('trap').innerHTML=s.trap?`<div class="trap">${s.trap}</div>`:'';
+  $('prep').textContent=s.prepared_by; $('appr').textContent=s.approved_by;
+  $('lines').innerHTML=s.lines.map(l=>`<tr><td class="acct">${l.account}</td>
+    <td>${l.desc?`<div class="d">${l.desc}</div>`:''}</td>
+    <td class="r">${l.debit||'·'}</td><td class="r">${l.credit||'·'}</td></tr>`).join('');
+
+  // re-run the flow pulse along the trust boundary
+  const p=$('pulse'); p.classList.remove('run'); void p.offsetWidth; if(!reduce) p.classList.add('run');
+
+  const checks=$('checks'); checks.innerHTML='';
+  const stamp=$('stamp'), wb=$('wb');
+  stamp.className='stamp'; stamp.innerHTML=''; wb.className='wb'; wb.innerHTML='';
+
+  const step=reduce?0:105, base=reduce?0:260;
   s.checks.forEach((c,i)=>{
     const row=document.createElement('div'); row.className='check';
     const cls=c.passed?'ok':(c.severity==='warning'?'warn':'bad');
-    const mark=c.passed?'✓':(c.severity==='warning'?'!':'✕');
-    row.innerHTML=`<div class="dot ${cls}">${mark}</div><div><div class="cname">${nice[c.check]||c.check}</div>
-      <div class="cdetail">${c.detail}</div></div>`;
-    elChecks.appendChild(row);
-    setTimeout(()=>row.classList.add('show'), 120*i);
+    const mark=c.passed?'✓':(c.severity==='warning'?'‖':'✕');
+    if(!c.passed) row.classList.add('fail');
+    row.innerHTML=`<div class="led ${cls}">${mark}</div><div><div class="cn">${nice[c.check]||c.check}</div>
+      <div class="cd">${c.detail}</div></div>`;
+    checks.appendChild(row);
+    timers.push(setTimeout(()=>row.classList.add('show'), base+step*i));
   });
-  setTimeout(()=>{
-    elDec.className='decision show '+s.decision;
-    elDec.textContent=decWord[s.decision]||s.decision;
-    elWb.innerHTML='<b>Write-back:</b> '+s.writeback.text;
-  }, 120*s.checks.length+180);
+  timers.push(setTimeout(()=>{
+    const [w,sub]=stampWord[s.decision]||[s.decision,''];
+    stamp.className='stamp show '+s.decision;
+    stamp.innerHTML=`${w}<span class="ss">${sub}</span>`;
+    wb.className='wb show'; wb.innerHTML='<b>Write-back.</b> '+s.writeback.text;
+  }, base+step*s.checks.length+120));
 }
 render(SCENARIOS[0]);
 </script>
