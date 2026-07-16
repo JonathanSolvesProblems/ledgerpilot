@@ -131,7 +131,7 @@ scripts/
   counterfactual.py    # gate off vs gate on, posted to a live ledger
   mcp_demo.py          # Qwen drives the ERP write through MCP, and cannot write anything wrong
 webui.py               # builds web/index.html: a visual frontend over the real gate
-tests/                 # 72 tests: gate, reconciliation, tokens, pipeline, clients, MCP, live eval
+tests/                 # 76 tests: gate, reconciliation, tokens, pipeline, clients, MCP, config, live eval
 docs/
   architecture.svg     # system + Alibaba Cloud topology diagram
   DEVPOST.md BLOG.md DEMO_SCRIPT.md
@@ -145,7 +145,7 @@ cp .env.example .env          # add DASHSCOPE_API_KEY; generate a signing key wi
 python -m eval.harness        # offline: 204-case synthetic stress-test, no key needed
 python demo.py                # end-to-end propose -> gate -> governed write, no key needed
 python webui.py               # builds web/index.html; open it in a browser to watch the gate
-pytest                        # 72 tests
+pytest                        # 76 tests
 
 # with a Model Studio key in .env (auto-loaded):
 python -m eval.harness --live # MEASURED false-write rate on real Qwen output + Wilson CI

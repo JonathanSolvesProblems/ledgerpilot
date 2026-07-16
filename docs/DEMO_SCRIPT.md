@@ -1,4 +1,6 @@
-Two recording scripts, grounded in the exact on-screen output. The demo opens on the reconciliation catch and refuses the write; the suite passes (72 tests); the harness prints the 0.00% / <=8.33% CI numbers.
+Two recording scripts, grounded in the exact on-screen output. The demo opens on the reconciliation catch and refuses the write; the suite passes (76 tests); the harness prints the 0.00% / <=8.33% CI numbers.
+
+> Never narrate a specific model mistake count. Sampling varies between runs (the flagship is stable at 97.4%, qwen-flash moves a few points), so state the invariant instead: every mistake caught, zero wrong writes, every run. See the note at the end of `demo_script.md`.
 
 > The primary, up-to-date shot list and voiceover is `demo_script.md` in the repo root, which leads with the counterfactual (7 wrong entries gate-off vs 0 gate-on) and the MCP tamper scene. This file is the longer reference version; where they differ, follow `demo_script.md`.
 
@@ -61,7 +63,7 @@ NARRATION: "The generative layers run on Alibaba Cloud Model Studio: Qwen3-VL re
 
 ON SCREEN: Uniqueness-claim card (trimmed from the README opening): "The only close agent that shows you the wrong entries with the gate off, then zero with it on, and publishes a measured false-write rate with a confidence bound." Below it: "Track 4: Autopilot Agent" and the repo URL with the Apache-2.0 badge.
 
-NARRATION: "That is the claim: the only close agent that publishes a measured false-write rate, backed by a deterministic check that catches the balanced-but-wrong entries a trial balance never will. It runs on Alibaba Cloud, it writes to a real ERP, and eight model mistakes in, nothing wrong has ever reached the ledger. LedgerPilot: the model proposes, the gate decides."
+NARRATION: "That is the claim: the only close agent that publishes a measured false-write rate, backed by a deterministic check that catches the balanced-but-wrong entries a trial balance never will. It runs on Alibaba Cloud, it writes to a real ERP, and across every run so far, every mistake the model made was caught and nothing wrong ever reached the ledger. LedgerPilot: the model proposes, the gate decides."
 
 ---
 
