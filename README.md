@@ -220,6 +220,7 @@ python -m eval.harness --live                    # measured false-write rate + W
 | Public repo + OSS license | this repo, [LICENSE](LICENSE) (Apache-2.0) |
 | Proof of Alibaba Cloud Deployment (code file) | [ledgerpilot/planner.py](ledgerpilot/planner.py) (Qwen on Model Studio, function calling) and [scripts/deploy_ecs.py](scripts/deploy_ecs.py) (the ECS + VPC OpenAPI calls that provisioned the server the backend runs on) |
 | Proof the backend ran on Alibaba Cloud (transcript) | [docs/ecs_proof.txt](docs/ecs_proof.txt), generated on ECS instance `i-t4n1i5p7bz4ypj122e6q` |
+| Screenshots of the running system | [docs/evidence/](docs/evidence/): the ECS console with the instance Running, the real posted `account.move` in Odoo, and the counterfactual's wrong entries sitting in the ledger |
 | Real ERP write (bonus) | [scripts/real_odoo_write.py](scripts/real_odoo_write.py); posted `MISC/2026/06/0001` from local ([docs/real_write_proof.txt](docs/real_write_proof.txt)) and `MISC/2026/06/0002` from ECS ([docs/ecs_proof.txt](docs/ecs_proof.txt)) to a live Odoo 19 |
 | MCP integration (Technical Depth) | [ledgerpilot/mcp_server.py](ledgerpilot/mcp_server.py) + [scripts/mcp_demo.py](scripts/mcp_demo.py): Qwen posts `move_id 3` through MCP and is refused when told to tamper |
 | Counterfactual (Impact) | [scripts/counterfactual.py](scripts/counterfactual.py), [docs/counterfactual_proof.txt](docs/counterfactual_proof.txt): wrong entries posted gate-off vs 0 gate-on |
