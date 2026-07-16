@@ -1,4 +1,4 @@
-Two recording scripts, grounded in the exact on-screen output. The demo opens on the reconciliation catch and refuses the write; the suite passes (76 tests); the harness prints the 0.00% / <=8.33% CI numbers.
+Two recording scripts, grounded in the exact on-screen output. The demo opens on the reconciliation catch and refuses the write; the suite passes (79 tests); the harness prints the 0.00% / <=8.33% CI numbers.
 
 > Never narrate a specific model mistake count. Sampling varies between runs (the flagship is stable at 97.4%, qwen-flash moves a few points), so state the invariant instead: every mistake caught, zero wrong writes, every run. See the note at the end of `demo_script.md`.
 
