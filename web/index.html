@@ -5,177 +5,206 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>LedgerPilot — the gate is the only path to a write</title>
 <meta name="description" content="An autonomous month-end-close agent on Qwen Cloud. Qwen proposes journal entries; a deterministic gate is the only path to a write. Same model, same tasks: gate off, wrong entries hit the ledger; gate on, zero."/>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36' fill='none' stroke='%23c9a24b' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='5' y1='12' x2='16' y2='12'/%3E%3Cline x1='5' y1='18' x2='16' y2='18'/%3E%3Cline x1='5' y1='24' x2='13' y2='24'/%3E%3Cline x1='20' y1='5' x2='20' y2='31' opacity='.6'/%3E%3Cpath d='M24 18 l3.5 3.5 l6.5 -8.5'/%3E%3C/svg%3E"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36' fill='none' stroke='%231c6b3c' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='5' y1='12' x2='16' y2='12'/%3E%3Cline x1='5' y1='18' x2='16' y2='18'/%3E%3Cline x1='5' y1='24' x2='13' y2='24'/%3E%3Cline x1='20' y1='5' x2='20' y2='31' opacity='.6'/%3E%3Cpath d='M24 18 l3.5 3.5 l6.5 -8.5'/%3E%3C/svg%3E"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
-  /* LedgerPilot is not a dashboard, it is a working paper: a reviewer's marked-up
-     copy of a document. So the page IS the paper. Cream stock, black ink, hairline
-     rules, red pen on the exception, a rubber stamp for the verdict, and real audit
-     tick marks down the margin with the legend every working paper has to carry. */
+  /* ------------------------------------------------------------------------
+     LedgerPilot prints. The page is a 14-7/8" continuous-feed greenbar report:
+     the stock the IBM 1403 line printer used from 1959, and the visual artifact
+     of computerised accounting itself. The green bands are functional, not
+     decorative: they let the eye carry one row of figures across a wide report
+     without slipping a line, which is exactly what the gate's checks are. The
+     sprocket strips are how the paper was fed. One typeface, because a line
+     printer has one typeface.
+     ------------------------------------------------------------------------ */
   :root{
-    --stock:#f2eee2; --stock-2:#e9e4d4; --edge:#dcd5c0;
-    --ink:#1c1a15; --ink-2:#4a463c; --faint:#8a8371;
-    --rule:rgba(28,26,21,.14); --rule-2:rgba(28,26,21,.34);
-    --brass:#8a6d1f; --pen:#a8301f; --pen-bg:rgba(168,48,31,.055);
-    --ok:#1f6b3f; --hold:#9a6a10;
-    --disp:"Fraunces",Georgia,"Times New Roman",serif;
-    --mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code",monospace;
-    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --desk:#3f4a44;
+    --stock:#f7f8f4; --band:#d8e8d4; --band-2:#cfe3cb;
+    --ink:#14171a; --ink-2:#4c5559; --faint:#8d9691;
+    --rule:#c3ccc4; --rule-2:#8d9a90;
+    --perf:#aab6ac;
+    --ok:#1c6b3c; --pen:#b3261e; --hold:#8a5a06;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code","Roboto Mono",monospace;
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{margin:0;background:#cfc9b6;color:var(--ink);font:15px/1.55 var(--sans);
-    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;background:var(--stock);
-    padding:38px 46px 40px;min-height:100vh;
-    box-shadow:0 0 0 1px var(--edge),0 24px 70px -20px rgba(40,34,20,.45)}
-  @media (max-width:840px){.wrap{padding:24px 20px}}
-  .grain{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:.05;mix-blend-mode:multiply;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  body{margin:0;background:var(--desk);color:var(--ink);
+    font:14px/1.5 var(--mono);-webkit-font-smoothing:antialiased}
 
-  /* the block every working paper carries at the top */
-  .wp{border-bottom:2.5px solid var(--ink);padding-bottom:12px}
-  .wp-top{display:flex;align-items:flex-start;gap:15px;flex-wrap:wrap}
-  .mark{width:34px;height:34px;flex:0 0 34px;margin-top:3px}
-  .word{font:600 24px/1 var(--disp);letter-spacing:-.3px}
-  .tagline{font:400 11px/1.4 var(--mono);color:var(--ink-2);margin-top:5px}
-  .wpref{margin-left:auto;text-align:right;font:500 10.5px/1.75 var(--mono);color:var(--ink-2)}
+  /* the sheet, with tractor-feed strips punched down both edges */
+  .wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;background:var(--stock);
+    padding:34px 74px 36px;min-height:100vh;box-shadow:0 0 60px -10px rgba(0,0,0,.5)}
+  .wrap::before,.wrap::after{content:"";position:absolute;top:0;bottom:0;width:40px;
+    background-image:radial-gradient(circle 5px at 20px 13px,var(--desk) 97%,transparent 100%);
+    background-size:40px 26px;background-repeat:repeat-y;pointer-events:none}
+  .wrap::before{left:0;border-right:1px dashed var(--perf)}
+  .wrap::after{right:0;border-left:1px dashed var(--perf)}
+  @media (max-width:860px){
+    .wrap{padding:22px 18px}
+    .wrap::before,.wrap::after{display:none}
+  }
+  .grain{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:.05;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* report header, the way a 132-column report carries one */
+  .wp{border-bottom:2px solid var(--ink);padding-bottom:11px}
+  .wp-top{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+  .mark{width:31px;height:31px;flex:0 0 31px;margin-top:2px}
+  .word{font:700 23px/1 var(--mono);letter-spacing:-1.2px}
+  .tagline{font:400 11px/1.4 var(--mono);color:var(--ink-2);margin-top:5px;letter-spacing:-.2px}
+  .wpref{margin-left:auto;text-align:right;font:500 10.5px/1.8 var(--mono);color:var(--ink-2)}
   .wpref b{color:var(--ink);font-weight:700}
-  .wp-grid{display:grid;grid-template-columns:repeat(4,auto);gap:0 36px;margin-top:14px;
-    padding-top:11px;border-top:1px solid var(--rule)}
-  @media (max-width:840px){.wp-grid{grid-template-columns:1fr 1fr;gap:12px 20px}}
-  .wp-f{font:400 9px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)}
-  .wp-f b{display:block;font:500 12px/1.4 var(--mono);color:var(--ink);margin-top:4px;letter-spacing:0}
+  .wp-grid{display:grid;grid-template-columns:repeat(4,auto);gap:0 34px;margin-top:13px;
+    padding-top:10px;border-top:1px solid var(--rule)}
+  @media (max-width:860px){.wp-grid{grid-template-columns:1fr 1fr;gap:11px 18px}}
+  .wp-f{font:400 9px/1 var(--mono);letter-spacing:1.3px;text-transform:uppercase;color:var(--faint)}
+  .wp-f b{display:block;font:500 11.5px/1.4 var(--mono);color:var(--ink);margin-top:4px;letter-spacing:0}
   .wp-f b .live{color:var(--ok)}
 
-  .lede{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:start;margin:26px 0 4px}
-  @media (max-width:840px){.lede{grid-template-columns:1fr;gap:22px}}
-  .thesis{margin:0;font:400 19px/1.5 var(--disp);color:var(--ink);max-width:34ch;text-wrap:pretty}
-  .thesis b{color:var(--pen);font-weight:600}
-  .cf-h{font:600 9px/1 var(--mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--faint);
-    border-bottom:1px solid var(--rule-2);padding-bottom:7px}
-  .cf-row{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:16px;
-    padding:11px 0;border-bottom:1px solid var(--rule)}
-  .cf-k{font:500 12px/1.3 var(--mono);color:var(--ink)}
-  .cf-k span{display:block;font:400 10.5px/1.4 var(--sans);color:var(--faint);margin-top:3px;max-width:32ch}
-  .cf-v{font:600 34px/.9 var(--disp);font-variant-numeric:tabular-nums}
+  .lede{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:start;margin:24px 0 4px}
+  @media (max-width:860px){.lede{grid-template-columns:1fr;gap:20px}}
+  .thesis{margin:0;font:500 17px/1.55 var(--mono);color:var(--ink);max-width:40ch;letter-spacing:-.5px}
+  .thesis b{color:var(--pen);font-weight:700}
+
+  /* the counterfactual, banded like the report it came off */
+  .cf-h{font:600 9px/1 var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);
+    border-bottom:1px solid var(--rule-2);padding-bottom:6px}
+  .cf-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:16px;
+    padding:12px 10px;margin:0 -10px}
+  .cf-row.off{background:var(--band)}
+  .cf-k{font:500 11.5px/1.3 var(--mono);color:var(--ink)}
+  .cf-k span{display:block;font:400 10px/1.4 var(--mono);color:var(--ink-2);margin-top:3px;max-width:34ch}
+  .cf-v{font:700 34px/.9 var(--mono);letter-spacing:-2px;font-variant-numeric:tabular-nums}
   .cf-row.off .cf-v{color:var(--pen)} .cf-row.on .cf-v{color:var(--ok)}
   .cf-row.on{border-bottom:3px double var(--rule-2)}
-  .cf-f{font:400 10px/1.5 var(--mono);color:var(--faint);padding-top:8px}
+  .cf-f{font:400 9.5px/1.5 var(--mono);color:var(--faint);padding-top:8px}
 
-  .tabs{display:flex;gap:0;flex-wrap:wrap;margin:26px 0 0;border-bottom:1.5px solid var(--ink);padding-left:2px}
-  .tab{cursor:pointer;font:500 12.5px/1 var(--mono);color:var(--ink-2);background:transparent;
-    border:none;border-bottom:3px solid transparent;padding:11px 16px;margin-bottom:-1.5px;
-    transition:color .16s,border-color .16s}
+  .tabs{display:flex;gap:0;flex-wrap:wrap;margin:24px 0 0;border-bottom:1.5px solid var(--ink);padding-left:2px}
+  .tab{cursor:pointer;font:500 12px/1 var(--mono);color:var(--ink-2);background:transparent;
+    border:none;border-bottom:3px solid transparent;padding:11px 15px;margin-bottom:-1.5px;
+    transition:color .14s,border-color .14s;letter-spacing:-.2px}
   .tab:hover{color:var(--ink)}
-  .tab:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
+  .tab:focus-visible{outline:2px solid var(--ok);outline-offset:-2px}
   .tab.active{color:var(--ink);border-bottom-color:var(--pen);font-weight:700}
 
-  .stage{display:grid;grid-template-columns:minmax(0,1fr) 50px minmax(0,1.04fr);align-items:stretch}
-  @media (max-width:840px){.stage{grid-template-columns:1fr;gap:18px}.seam{display:none}}
-  .paper{background:#fbf9f2;border:1px solid var(--edge);color:var(--ink);
-    padding:20px 22px 18px;position:relative;display:flex;flex-direction:column;
-    box-shadow:0 1px 3px rgba(40,34,20,.10)}
-  .paper::before{content:"";position:absolute;left:-1px;top:14px;bottom:14px;width:3px;background:var(--brass)}
+  .stage{display:grid;grid-template-columns:minmax(0,1fr) 46px minmax(0,1.04fr);align-items:stretch}
+  @media (max-width:860px){.stage{grid-template-columns:1fr;gap:16px}.seam{display:none}}
+
+  /* the voucher: a form printed on the same stock */
+  .paper{background:#fff;border:1px solid var(--rule);color:var(--ink);
+    padding:18px 20px 16px;position:relative;display:flex;flex-direction:column}
+  .paper::before{content:"";position:absolute;left:-1px;top:12px;bottom:12px;width:3px;background:var(--ok)}
   .vhead{display:flex;justify-content:space-between;align-items:baseline;
-    border-bottom:1.5px solid var(--rule-2);padding-bottom:8px}
-  .vhead .lbl{font:600 9px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)}
-  .vhead .ref{font:600 12.5px/1 var(--mono)}
-  .doc{font:500 13px/1.45 var(--mono);padding:11px 0 3px}
-  .amt-big{font:600 14.5px/1 var(--mono)}
-  .note{font:400 12.5px/1.5 var(--sans);color:var(--ink-2);margin:2px 0 11px;max-width:52ch}
-  .trap{display:block;font:500 11.5px/1.4 var(--sans);color:var(--pen);background:var(--pen-bg);
-    border-left:2px solid var(--pen);padding:7px 10px;margin:0 0 11px}
+    border-bottom:1.5px solid var(--rule-2);padding-bottom:7px}
+  .vhead .lbl{font:600 9px/1 var(--mono);letter-spacing:1.3px;text-transform:uppercase;color:var(--faint)}
+  .vhead .ref{font:700 12px/1 var(--mono)}
+  .doc{font:500 12.5px/1.45 var(--mono);padding:10px 0 3px}
+  .amt-big{font:700 14px/1 var(--mono)}
+  .note{font:400 11.5px/1.55 var(--mono);color:var(--ink-2);margin:2px 0 10px;max-width:54ch}
+  .trap{display:block;font:500 11px/1.45 var(--mono);color:var(--pen);
+    border-left:3px solid var(--pen);padding:6px 9px;margin:0 0 10px;background:rgba(179,38,30,.05)}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  th{font:600 9px/1 var(--mono);letter-spacing:.6px;text-transform:uppercase;color:var(--faint);
-    text-align:left;padding:0 0 6px;border-bottom:1px solid var(--rule-2)}
+  th{font:600 9px/1 var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--faint);
+    text-align:left;padding:0 6px 6px;border-bottom:1.5px solid var(--rule-2)}
   th.r,td.r{text-align:right}
-  td{font:500 13px/1 var(--mono);padding:9px 0;border-bottom:1px solid var(--rule)}
-  td .d{font:400 11px/1.3 var(--sans);color:var(--faint);margin-top:3px}
-  td.acct{width:58px}
-  .vfoot{display:flex;gap:24px;margin-top:11px;padding-top:10px}
-  .vfoot div{font:400 9px/1.4 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--faint)}
-  .vfoot b{display:block;font:500 12px/1.3 var(--mono);color:var(--ink);margin-top:3px;letter-spacing:0;text-transform:none}
-  .fill{flex:1 1 auto;min-height:44px;margin-top:10px;
-    background-image:repeating-linear-gradient(transparent 0 26px,var(--rule) 26px 27px)}
+  /* the band, doing its job: one row of figures, tracked across */
+  tbody tr:nth-child(odd){background:var(--band)}
+  td{font:500 12.5px/1 var(--mono);padding:9px 6px}
+  td .d{font:400 10px/1.3 var(--mono);color:var(--ink-2);margin-top:3px}
+  td.acct{width:56px;font-weight:700}
+  .vfoot{display:flex;gap:22px;margin-top:10px;padding-top:9px;border-top:1px solid var(--rule)}
+  .vfoot div{font:400 8.5px/1.4 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--faint)}
+  .vfoot b{display:block;font:500 11.5px/1.3 var(--mono);color:var(--ink);margin-top:3px;letter-spacing:0;text-transform:none}
+  .fill{flex:1 1 auto;min-height:40px;margin:9px -20px -16px;
+    background-image:repeating-linear-gradient(180deg,transparent 0 25px,var(--band) 25px 50px)}
 
   .seam{position:relative;display:flex;align-items:center;justify-content:center}
   .seam::before{content:"";position:absolute;top:6px;bottom:6px;width:1px;
-    background:linear-gradient(180deg,transparent,var(--rule-2) 15%,var(--rule-2) 85%,transparent)}
-  .seam-label{position:absolute;font:600 8.5px/1 var(--mono);letter-spacing:2px;text-transform:uppercase;
+    background:linear-gradient(180deg,transparent,var(--rule-2) 14%,var(--rule-2) 86%,transparent)}
+  .seam-label{position:absolute;font:600 8px/1 var(--mono);letter-spacing:2px;text-transform:uppercase;
     color:var(--faint);white-space:nowrap;transform:rotate(-90deg);background:var(--stock);padding:6px 0}
-  .pulse{position:absolute;top:0;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;
-    background:var(--brass);opacity:0}
-  .pulse.run{animation:flow 1.1s cubic-bezier(.4,0,.5,1)}
-  @keyframes flow{0%{top:4%;opacity:0}15%{opacity:1}85%{opacity:1}100%{top:96%;opacity:0}}
+  .pulse{position:absolute;top:0;left:50%;width:5px;height:5px;margin-left:-2.5px;
+    background:var(--ok);opacity:0}
+  .pulse.run{animation:flow 1s steps(14,end)}
+  @keyframes flow{0%{top:4%;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:96%;opacity:0}}
 
-  /* the reviewer's column: tick marks in the margin, red pen on the exception */
-  .gate{padding:0 0 0 14px;display:flex;flex-direction:column}
+  /* the reviewer's column, banded so a tick tracks to its line */
+  .gate{padding:0 0 0 12px;display:flex;flex-direction:column}
   .ghead{display:flex;align-items:baseline;justify-content:space-between;
-    border-bottom:1.5px solid var(--rule-2);padding-bottom:8px}
-  .ghead .t{font:600 9px/1 var(--mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--ink)}
-  .ghead .s{font:400 10px/1 var(--mono);color:var(--faint)}
-  .check{display:grid;grid-template-columns:20px 1fr;gap:12px;align-items:baseline;
-    padding:9px 0 8px;border-bottom:1px solid var(--rule);opacity:0;transition:opacity .3s}
+    border-bottom:1.5px solid var(--rule-2);padding-bottom:7px}
+  .ghead .t{font:700 9px/1 var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink)}
+  .ghead .s{font:400 9.5px/1 var(--mono);color:var(--faint)}
+  .check{display:grid;grid-template-columns:18px 1fr;gap:12px;align-items:baseline;
+    padding:9px 10px 8px;margin:0 -10px;opacity:0;transition:opacity .18s linear}
+  .check:nth-child(odd){background:var(--band)}
   .check.show{opacity:1}
-  .tick{font:600 15px/1.1 var(--disp);color:var(--ok);text-align:center}
+  .tick{font:700 13px/1.2 var(--mono);color:var(--ok);text-align:center}
   .tick.bad{color:var(--pen)} .tick.warn{color:var(--hold)}
-  .check.fail{background:var(--pen-bg)}
-  .cn{font:500 12.5px/1.3 var(--sans);color:var(--ink)}
-  .check.fail .cn{color:var(--pen);font-weight:600}
+  .check.fail{background:rgba(179,38,30,.10)}
+  .check.fail.held{background:rgba(138,90,6,.12)}
+  .cn{font:600 12px/1.3 var(--mono);color:var(--ink);letter-spacing:-.2px}
+  .check.fail .cn{color:var(--pen)}
   .check.held .cn{color:var(--hold)}
-  .cd{font:400 11px/1.5 var(--mono);color:var(--ink-2);margin-top:3px}
+  .cd{font:400 10.5px/1.5 var(--mono);color:var(--ink-2);margin-top:3px}
   .check.fail .cd{color:var(--pen)}
   .check.held .cd{color:var(--hold)}
-  .legend{font:400 10px/1.75 var(--mono);color:var(--faint);margin-top:10px;
-    border-top:1px solid var(--rule);padding-top:9px}
-  .legend em{font:600 11px/1 var(--disp);font-style:normal;color:var(--ok)}
-  .legend i{font:600 11px/1 var(--disp);font-style:normal;color:var(--pen)}
+  .legend{font:400 9.5px/1.7 var(--mono);color:var(--faint);margin-top:9px;
+    border-top:1px solid var(--rule);padding-top:8px}
+  .legend em{font-style:normal;font-weight:700;color:var(--ok)}
+  .legend i{font-style:normal;font-weight:700;color:var(--pen)}
 
-  .verdict{margin-top:16px;display:flex;align-items:center;gap:16px}
-  .stamp{flex:0 0 auto;border:2.5px solid currentColor;border-radius:3px;padding:8px 15px;
-    font:700 21px/1 var(--disp);letter-spacing:1px;text-transform:uppercase;position:relative;
-    opacity:0;transform:rotate(-15deg) scale(1.6)}
-  .stamp .ss{display:block;font:500 9px/1 var(--mono);letter-spacing:1.4px;margin-top:5px;text-align:center;opacity:.9}
-  .stamp.show{animation:stampIn .44s cubic-bezier(.2,1.3,.5,1) forwards}
-  @keyframes stampIn{0%{opacity:0;transform:rotate(-15deg) scale(1.6)}
-    65%{opacity:.92;transform:rotate(-3.5deg) scale(.92)}100%{opacity:.92;transform:rotate(-3.5deg) scale(1)}}
+  /* struck on with a rubber stamp, over the print */
+  .verdict{margin-top:15px;display:flex;align-items:center;gap:15px}
+  .stamp{flex:0 0 auto;border:2.5px solid currentColor;padding:7px 14px;
+    font:700 20px/1 var(--mono);letter-spacing:0;text-transform:uppercase;position:relative;
+    opacity:0;transform:rotate(-14deg) scale(1.55)}
+  .stamp .ss{display:block;font:500 8.5px/1 var(--mono);letter-spacing:1.2px;margin-top:5px;text-align:center;opacity:.9}
+  .stamp.show{animation:stampIn .4s cubic-bezier(.2,1.35,.5,1) forwards}
+  @keyframes stampIn{0%{opacity:0;transform:rotate(-14deg) scale(1.55)}
+    60%{opacity:.9;transform:rotate(-3deg) scale(.92)}100%{opacity:.9;transform:rotate(-3deg) scale(1)}}
   .stamp.approved{color:var(--ok)} .stamp.rejected{color:var(--pen)} .stamp.needs_human{color:var(--hold)}
-  .wb{font:400 12px/1.5 var(--sans);color:var(--ink-2);opacity:0;transition:opacity .4s ease .1s;max-width:30ch}
-  .wb.show{opacity:1} .wb b{color:var(--ink);font-weight:600}
+  .wb{font:400 11px/1.55 var(--mono);color:var(--ink-2);opacity:0;transition:opacity .3s ease .1s;max-width:32ch}
+  .wb.show{opacity:1} .wb b{color:var(--ink);font-weight:700}
 
   .hitl[hidden]{display:none}
-  .hitl{margin-top:14px;padding-top:13px;border-top:1px dashed var(--rule-2);
-    display:flex;align-items:center;gap:14px;flex-wrap:wrap;opacity:0;transition:opacity .4s ease}
+  .hitl{margin-top:13px;padding-top:12px;border-top:1px dashed var(--rule-2);
+    display:flex;align-items:center;gap:13px;flex-wrap:wrap;opacity:0;transition:opacity .3s ease}
   .hitl.show{opacity:1}
-  .hitl .cap{font:400 11.5px/1.45 var(--sans);color:var(--ink-2);max-width:23ch}
-  .hitl .cap b{color:var(--hold);font-weight:600}
-  .approve{cursor:pointer;font:600 12.5px/1 var(--sans);color:var(--stock);background:var(--ink);
-    border:1px solid var(--ink);padding:10px 15px;border-radius:2px;transition:.16s ease;
-    display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
-  .approve:hover{background:#33302a} .approve:active{transform:translateY(1px)}
-  .approve:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
-  .approve svg{width:14px;height:14px;stroke:var(--stock);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .hitl .cap{font:400 10.5px/1.5 var(--mono);color:var(--ink-2);max-width:25ch}
+  .hitl .cap b{color:var(--hold);font-weight:700}
+  .approve{cursor:pointer;font:700 11.5px/1 var(--mono);color:var(--stock);background:var(--ink);
+    border:1px solid var(--ink);padding:10px 14px;transition:.14s ease;
+    display:inline-flex;align-items:center;gap:8px;white-space:nowrap;letter-spacing:-.2px}
+  .approve:hover{background:#2b3033} .approve:active{transform:translateY(1px)}
+  .approve:focus-visible{outline:2px solid var(--ok);outline-offset:3px}
+  .approve svg{width:13px;height:13px;stroke:var(--stock);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 
-  .proof{margin-top:30px;border-top:2.5px solid var(--ink);display:grid;
+  /* the totals line the report foots to */
+  .proof{margin-top:28px;border-top:2px solid var(--ink);display:grid;
     grid-template-columns:1.15fr 1fr 1fr 1.1fr}
-  @media (max-width:840px){.proof{grid-template-columns:1fr 1fr}}
-  .stat{padding:16px 20px 2px;border-right:1px solid var(--rule)}
+  @media (max-width:860px){.proof{grid-template-columns:1fr 1fr}}
+  .stat{padding:15px 18px 2px;border-right:1px solid var(--rule)}
   .stat:first-child{padding-left:0} .stat:last-child{border-right:none}
-  @media (max-width:840px){.stat{padding-left:0;border-right:none}}
-  .stat .n{font:600 27px/1 var(--disp);font-variant-numeric:tabular-nums}
+  @media (max-width:860px){.stat{padding-left:0;border-right:none}}
+  .stat .n{font:700 26px/1 var(--mono);letter-spacing:-1.5px;font-variant-numeric:tabular-nums}
   .stat.feat .n{color:var(--ok)}
-  .stat .l{font:400 10.5px/1.5 var(--sans);color:var(--ink-2);margin-top:7px;max-width:26ch}
-  .repro{margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-    font:400 11px/1.5 var(--sans);color:var(--faint);border-top:1px solid var(--rule);padding-top:13px}
-  .repro code{font:500 11px/1 var(--mono);color:var(--ink);background:var(--stock-2);
-    border:1px solid var(--edge);border-radius:2px;padding:4px 7px}
+  .stat .l{font:400 10px/1.55 var(--mono);color:var(--ink-2);margin-top:7px;max-width:28ch}
+  .repro{margin-top:13px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+    font:400 10px/1.5 var(--mono);color:var(--faint);border-top:1px solid var(--rule);padding-top:12px}
+  .repro code{font:500 10px/1 var(--mono);color:var(--ink);background:var(--band);
+    border:1px solid var(--rule);padding:4px 7px}
+  .by{margin-left:auto;font:400 10px/1.5 var(--mono);color:var(--faint)}
+  .by a{color:var(--ok);font-weight:700;text-decoration:none;border-bottom:1px solid var(--ok);
+    padding-bottom:1px;transition:opacity .14s}
+  .by a:hover{opacity:.65}
+  .by a:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+  @media (max-width:860px){.by{margin-left:0;width:100%}}
 
   @media (prefers-reduced-motion:reduce){
     *{animation-duration:.001ms!important;transition-duration:.001ms!important}
-    .check{opacity:1} .stamp{opacity:.92;transform:rotate(-3.5deg)}
+    .check{opacity:1} .stamp{opacity:.9;transform:rotate(-3deg)}
   }
 </style>
 </head>
@@ -184,7 +213,7 @@
 <div class="wrap">
   <header class="wp">
     <div class="wp-top">
-      <svg class="mark" viewBox="0 0 36 36" fill="none" stroke="#8a6d1f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="16" y2="12"/><line x1="5" y1="18" x2="16" y2="18"/><line x1="5" y1="24" x2="13" y2="24"/><line x1="20" y1="5" x2="20" y2="31" opacity=".55"/><path d="M24 18 l3.5 3.5 l6.5 -8.5"/></svg>
+      <svg class="mark" viewBox="0 0 36 36" fill="none" stroke="#1c6b3c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="16" y2="12"/><line x1="5" y1="18" x2="16" y2="18"/><line x1="5" y1="24" x2="13" y2="24"/><line x1="20" y1="5" x2="20" y2="31" opacity=".55"/><path d="M24 18 l3.5 3.5 l6.5 -8.5"/></svg>
       <div>
         <div class="word">LedgerPilot</div>
         <div class="tagline">autonomous month-end close &middot; the gate is the only path to a write</div>
@@ -269,6 +298,7 @@
   <div class="repro">
     Every verdict above is this project's real gate evaluating a real entry.
     <span>Reproduce:</span> <code>python -m eval.harness</code> <code>python scripts/counterfactual.py</code>
+    <span class="by">Built by <a href="https://jonathanandrei.com" target="_blank" rel="noopener">JonathanSolvesProblems</a></span>
   </div>
 </div>
 
@@ -315,7 +345,7 @@ function runGate(s, st, canApprove){
   stamp.className='stamp'; stamp.innerHTML=''; wb.className='wb'; wb.innerHTML='';
   hitl.hidden=true; hitl.classList.remove('show');
 
-  const step=reduce?0:105, base=reduce?0:260;
+  const step=reduce?0:78, base=reduce?0:150;
   // A reviewer's tick down the margin: pass, exception, or held for a human.
   st.checks.forEach((c,i)=>{
     const row=document.createElement('div'); row.className='check';
