@@ -157,213 +157,195 @@ HTML = r"""<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
+  /* LedgerPilot is not a dashboard, it is a working paper: a reviewer's marked-up
+     copy of a document. So the page IS the paper. Cream stock, black ink, hairline
+     rules, red pen on the exception, a rubber stamp for the verdict, and real audit
+     tick marks down the margin with the legend every working paper has to carry. */
   :root{
-    --desk:#0e1113; --desk-2:#15191c; --panel:#14181b; --raised:#1a1f22;
-    --paper:#f3efe4; --paper-2:#ebe5d6; --paper-ink:#211f19; --paper-mut:#6c6656; --paper-rule:rgba(33,31,25,.10);
-    --ink:#e9e7e1; --mut:#8b938f; --dim:#5f6864; --line:#252b2e; --line-2:#2f3639;
-    --brass:#c9a24b; --brass-dim:#8a7237;
-    --pass:#43b074; --pass-dim:#1c4030; --pass-bg:rgba(67,176,116,.10);
-    --fail:#d95468; --fail-dim:#4a2029; --fail-bg:rgba(217,84,104,.10);
-    --hold:#d99a3a; --hold-bg:rgba(217,154,58,.10);
+    --stock:#f2eee2; --stock-2:#e9e4d4; --edge:#dcd5c0;
+    --ink:#1c1a15; --ink-2:#4a463c; --faint:#8a8371;
+    --rule:rgba(28,26,21,.14); --rule-2:rgba(28,26,21,.34);
+    --brass:#8a6d1f; --pen:#a8301f; --pen-bg:rgba(168,48,31,.055);
+    --ok:#1f6b3f; --hold:#9a6a10;
     --disp:"Fraunces",Georgia,"Times New Roman",serif;
-    --mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code","Roboto Mono",monospace;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code",monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{margin:0;background:var(--desk);color:var(--ink);font:15px/1.55 var(--sans);
-    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden}
-  /* faint control-desk vignette + grain */
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
-    background:radial-gradient(120% 80% at 50% -10%,rgba(201,162,75,.06),transparent 60%),
-      radial-gradient(100% 120% at 100% 110%,rgba(67,176,116,.04),transparent 55%)}
-  .grain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.035;mix-blend-mode:overlay;
+  body{margin:0;background:#cfc9b6;color:var(--ink);font:15px/1.55 var(--sans);
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;background:var(--stock);
+    padding:38px 46px 40px;min-height:100vh;
+    box-shadow:0 0 0 1px var(--edge),0 24px 70px -20px rgba(40,34,20,.45)}
+  @media (max-width:840px){.wrap{padding:24px 20px}}
+  .grain{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:.05;mix-blend-mode:multiply;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
-  .wrap{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding:34px 24px 72px}
 
-  /* masthead */
-  .masthead{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--line)}
-  .brand{display:flex;align-items:center;gap:13px}
-  .mark{width:38px;height:38px;flex:0 0 38px;display:block}
-  .word{font:600 25px/1 var(--disp);letter-spacing:-.4px}
-  .tagline{font:400 12px/1.4 var(--mono);color:var(--mut);letter-spacing:.1px;margin-top:4px}
-  .badges{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}
-  .chip{font:500 11.5px/1 var(--mono);color:var(--mut);border:1px solid var(--line-2);
-    padding:7px 11px;border-radius:7px;letter-spacing:.2px;white-space:nowrap;display:flex;align-items:center;gap:7px}
-  .chip.live{color:var(--pass);border-color:var(--pass-dim)}
-  .chip.live i{width:6px;height:6px;border-radius:50%;background:var(--pass);
-    box-shadow:0 0 0 0 rgba(67,176,116,.5);animation:beat 2.2s ease-out infinite}
-  @keyframes beat{0%{box-shadow:0 0 0 0 rgba(67,176,116,.45)}70%{box-shadow:0 0 0 7px rgba(67,176,116,0)}100%{box-shadow:0 0 0 0 rgba(67,176,116,0)}}
+  /* the block every working paper carries at the top */
+  .wp{border-bottom:2.5px solid var(--ink);padding-bottom:12px}
+  .wp-top{display:flex;align-items:flex-start;gap:15px;flex-wrap:wrap}
+  .mark{width:34px;height:34px;flex:0 0 34px;margin-top:3px}
+  .word{font:600 24px/1 var(--disp);letter-spacing:-.3px}
+  .tagline{font:400 11px/1.4 var(--mono);color:var(--ink-2);margin-top:5px}
+  .wpref{margin-left:auto;text-align:right;font:500 10.5px/1.75 var(--mono);color:var(--ink-2)}
+  .wpref b{color:var(--ink);font-weight:700}
+  .wp-grid{display:grid;grid-template-columns:repeat(4,auto);gap:0 36px;margin-top:14px;
+    padding-top:11px;border-top:1px solid var(--rule)}
+  @media (max-width:840px){.wp-grid{grid-template-columns:1fr 1fr;gap:12px 20px}}
+  .wp-f{font:400 9px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)}
+  .wp-f b{display:block;font:500 12px/1.4 var(--mono);color:var(--ink);margin-top:4px;letter-spacing:0}
+  .wp-f b .live{color:var(--ok)}
 
-  /* lede + counterfactual */
-  .lede{display:grid;grid-template-columns:1.15fr .95fr;gap:30px;align-items:center;margin:30px 0 8px}
+  .lede{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:start;margin:26px 0 4px}
   @media (max-width:840px){.lede{grid-template-columns:1fr;gap:22px}}
-  .thesis{margin:0;font:400 20px/1.5 var(--disp);color:var(--ink);max-width:32ch;text-wrap:pretty}
-  .thesis b{color:var(--brass);font-weight:600}
-  /* The counterfactual is set as a ledger footing: a ruled column of figures with a
-     total, the way a schedule is actually presented. Not a stat card. */
-  .cf{position:relative;padding:2px 0 0}
-  .cf-h{font:600 10px/1 var(--mono);letter-spacing:1.8px;text-transform:uppercase;color:var(--dim);
-    border-bottom:1.5px solid var(--line-2);padding-bottom:8px}
+  .thesis{margin:0;font:400 19px/1.5 var(--disp);color:var(--ink);max-width:34ch;text-wrap:pretty}
+  .thesis b{color:var(--pen);font-weight:600}
+  .cf-h{font:600 9px/1 var(--mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--faint);
+    border-bottom:1px solid var(--rule-2);padding-bottom:7px}
   .cf-row{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:16px;
-    padding:13px 0;border-bottom:1px solid var(--line)}
-  .cf-k{font:500 12.5px/1.3 var(--mono);letter-spacing:.3px;color:var(--mut)}
-  .cf-k span{display:block;font:400 11px/1.4 var(--sans);color:var(--dim);margin-top:3px;max-width:30ch}
-  .cf-v{font:600 40px/.9 var(--disp);letter-spacing:-1px;font-variant-numeric:tabular-nums}
-  .cf-row.off .cf-v{color:var(--fail)} .cf-row.on .cf-v{color:var(--pass)}
-  .cf-row.on{border-bottom:2.5px double var(--line-2)}  /* the double rule of a total */
-  .cf-f{font:400 10.5px/1.5 var(--mono);color:var(--dim);padding-top:9px;letter-spacing:.2px}
+    padding:11px 0;border-bottom:1px solid var(--rule)}
+  .cf-k{font:500 12px/1.3 var(--mono);color:var(--ink)}
+  .cf-k span{display:block;font:400 10.5px/1.4 var(--sans);color:var(--faint);margin-top:3px;max-width:32ch}
+  .cf-v{font:600 34px/.9 var(--disp);font-variant-numeric:tabular-nums}
+  .cf-row.off .cf-v{color:var(--pen)} .cf-row.on .cf-v{color:var(--ok)}
+  .cf-row.on{border-bottom:3px double var(--rule-2)}
+  .cf-f{font:400 10px/1.5 var(--mono);color:var(--faint);padding-top:8px}
 
-  /* Scenario picker: file tabs on a folder, not pills. Square, butted together,
-     sitting on the rule that the document hangs from. */
-  .tabs{display:flex;gap:2px;flex-wrap:wrap;margin:32px 0 0;border-bottom:1.5px solid var(--line-2);
-    padding-left:2px}
-  .tab{cursor:pointer;font:500 12.5px/1 var(--mono);color:var(--mut);background:transparent;
-    border:none;border-bottom:2px solid transparent;padding:12px 15px;transition:color .16s,border-color .16s;
-    letter-spacing:.2px;margin-bottom:-1.5px}
+  .tabs{display:flex;gap:0;flex-wrap:wrap;margin:26px 0 0;border-bottom:1.5px solid var(--ink);padding-left:2px}
+  .tab{cursor:pointer;font:500 12.5px/1 var(--mono);color:var(--ink-2);background:transparent;
+    border:none;border-bottom:3px solid transparent;padding:11px 16px;margin-bottom:-1.5px;
+    transition:color .16s,border-color .16s}
   .tab:hover{color:var(--ink)}
   .tab:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
-  .tab.active{color:var(--brass);border-bottom-color:var(--brass);font-weight:600}
+  .tab.active{color:var(--ink);border-bottom-color:var(--pen);font-weight:700}
 
-  /* stage: document -> seam -> gate */
-  .stage{display:grid;grid-template-columns:minmax(0,1fr) 52px minmax(0,1.02fr);align-items:stretch}
-  @media (max-width:840px){.stage{grid-template-columns:1fr;gap:16px}.seam{display:none}}
-
-  /* the parchment voucher */
-  .paper{background:linear-gradient(180deg,var(--paper),var(--paper-2));color:var(--paper-ink);
-    border-radius:12px;padding:22px 24px 20px;position:relative;display:flex;flex-direction:column;
-    box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 18px 40px -18px rgba(0,0,0,.7),0 2px 8px rgba(0,0,0,.3)}
-  .paper::before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:4px;background:var(--brass)}
-  /* ruled continuation of the ledger page, kept below the entry so it never crosses text */
-  .fill{flex:1 1 auto;min-height:44px;margin-top:12px;
-    background-image:repeating-linear-gradient(transparent 0 27px,var(--paper-rule) 27px 28px)}
-  .vhead{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1.5px solid rgba(33,31,25,.22);padding-bottom:9px;margin-bottom:2px}
-  .vhead .lbl{font:600 10.5px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--paper-mut)}
-  .vhead .ref{font:600 13px/1 var(--mono);color:var(--paper-ink)}
-  .doc{font:500 13.5px/1.45 var(--mono);color:var(--paper-ink);padding:12px 0 4px}
-  .amt-big{font:500 15px/1 var(--mono)}
-  .note{font:400 13px/1.5 var(--sans);color:#514c40;margin:2px 0 12px;max-width:52ch}
-  .trap{display:inline-flex;align-items:center;gap:7px;font:500 11.5px/1.35 var(--sans);color:#8a3a24;
-    background:rgba(190,90,50,.10);border:1px solid rgba(190,90,50,.28);border-radius:7px;padding:7px 10px;margin:0 0 12px}
-  .trap::before{content:"⚠";font-size:12px}
+  .stage{display:grid;grid-template-columns:minmax(0,1fr) 50px minmax(0,1.04fr);align-items:stretch}
+  @media (max-width:840px){.stage{grid-template-columns:1fr;gap:18px}.seam{display:none}}
+  .paper{background:#fbf9f2;border:1px solid var(--edge);color:var(--ink);
+    padding:20px 22px 18px;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 1px 3px rgba(40,34,20,.10)}
+  .paper::before{content:"";position:absolute;left:-1px;top:14px;bottom:14px;width:3px;background:var(--brass)}
+  .vhead{display:flex;justify-content:space-between;align-items:baseline;
+    border-bottom:1.5px solid var(--rule-2);padding-bottom:8px}
+  .vhead .lbl{font:600 9px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)}
+  .vhead .ref{font:600 12.5px/1 var(--mono)}
+  .doc{font:500 13px/1.45 var(--mono);padding:11px 0 3px}
+  .amt-big{font:600 14.5px/1 var(--mono)}
+  .note{font:400 12.5px/1.5 var(--sans);color:var(--ink-2);margin:2px 0 11px;max-width:52ch}
+  .trap{display:block;font:500 11.5px/1.4 var(--sans);color:var(--pen);background:var(--pen-bg);
+    border-left:2px solid var(--pen);padding:7px 10px;margin:0 0 11px}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  th{font:600 10px/1 var(--mono);letter-spacing:.6px;text-transform:uppercase;color:var(--paper-mut);
-    text-align:left;padding:0 0 7px;border-bottom:1px solid rgba(33,31,25,.2)}
+  th{font:600 9px/1 var(--mono);letter-spacing:.6px;text-transform:uppercase;color:var(--faint);
+    text-align:left;padding:0 0 6px;border-bottom:1px solid var(--rule-2)}
   th.r,td.r{text-align:right}
-  td{font:500 13.5px/1 var(--mono);color:var(--paper-ink);padding:10px 0;border-bottom:1px solid var(--paper-rule)}
-  td .d{font:400 11.5px/1.3 var(--sans);color:#6c6656;margin-top:3px}
-  td.acct{width:64px}
-  .vfoot{display:flex;gap:22px;margin-top:12px;padding-top:11px}
-  .vfoot div{font:400 11px/1.4 var(--sans);color:var(--paper-mut)}
-  .vfoot b{display:block;font:500 12.5px/1.3 var(--mono);color:var(--paper-ink);margin-top:2px}
+  td{font:500 13px/1 var(--mono);padding:9px 0;border-bottom:1px solid var(--rule)}
+  td .d{font:400 11px/1.3 var(--sans);color:var(--faint);margin-top:3px}
+  td.acct{width:58px}
+  .vfoot{display:flex;gap:24px;margin-top:11px;padding-top:10px}
+  .vfoot div{font:400 9px/1.4 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--faint)}
+  .vfoot b{display:block;font:500 12px/1.3 var(--mono);color:var(--ink);margin-top:3px;letter-spacing:0;text-transform:none}
+  .fill{flex:1 1 auto;min-height:44px;margin-top:10px;
+    background-image:repeating-linear-gradient(transparent 0 26px,var(--rule) 26px 27px)}
 
-  /* the trust-boundary seam */
   .seam{position:relative;display:flex;align-items:center;justify-content:center}
-  .seam::before{content:"";position:absolute;top:8px;bottom:8px;width:1px;
-    background:linear-gradient(180deg,transparent,var(--brass-dim) 18%,var(--brass-dim) 82%,transparent)}
-  .seam-label{position:absolute;font:600 9.5px/1 var(--mono);letter-spacing:2px;text-transform:uppercase;
-    color:var(--brass-dim);white-space:nowrap;transform:rotate(-90deg);
-    background:var(--desk);padding:6px 0}
-  .pulse{position:absolute;top:0;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;
-    background:var(--brass);box-shadow:0 0 10px 2px rgba(201,162,75,.7);opacity:0}
-  .pulse.run{animation:flow 1.15s cubic-bezier(.4,0,.5,1)}
+  .seam::before{content:"";position:absolute;top:6px;bottom:6px;width:1px;
+    background:linear-gradient(180deg,transparent,var(--rule-2) 15%,var(--rule-2) 85%,transparent)}
+  .seam-label{position:absolute;font:600 8.5px/1 var(--mono);letter-spacing:2px;text-transform:uppercase;
+    color:var(--faint);white-space:nowrap;transform:rotate(-90deg);background:var(--stock);padding:6px 0}
+  .pulse{position:absolute;top:0;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;
+    background:var(--brass);opacity:0}
+  .pulse.run{animation:flow 1.1s cubic-bezier(.4,0,.5,1)}
   @keyframes flow{0%{top:4%;opacity:0}15%{opacity:1}85%{opacity:1}100%{top:96%;opacity:0}}
 
-  /* The reviewer's column. Not a card: an auditor does not hand you a widget, they
-     hand back your document with tick marks down the margin and a note on the one
-     line that is wrong. Rules and type, no boxes. */
-  .gate{padding:4px 2px 0 12px;display:flex;flex-direction:column}
+  /* the reviewer's column: tick marks in the margin, red pen on the exception */
+  .gate{padding:0 0 0 14px;display:flex;flex-direction:column}
   .ghead{display:flex;align-items:baseline;justify-content:space-between;
-    border-bottom:1.5px solid var(--line-2);padding-bottom:9px;margin-bottom:2px}
-  .ghead .t{font:600 10.5px/1 var(--mono);letter-spacing:1.8px;text-transform:uppercase;color:var(--brass)}
-  .ghead .s{font:400 10.5px/1 var(--mono);color:var(--dim);letter-spacing:.3px}
-  .checks{display:flex;flex-direction:column}
-  /* the tick column is a fixed measure, so every tick lines up like a ruled margin */
-  .check{display:grid;grid-template-columns:18px 1fr;gap:13px;align-items:baseline;
-    padding:10px 0 9px;border-bottom:1px solid var(--line);opacity:0;
-    transition:opacity .34s ease}
+    border-bottom:1.5px solid var(--rule-2);padding-bottom:8px}
+  .ghead .t{font:600 9px/1 var(--mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--ink)}
+  .ghead .s{font:400 10px/1 var(--mono);color:var(--faint)}
+  .check{display:grid;grid-template-columns:20px 1fr;gap:12px;align-items:baseline;
+    padding:9px 0 8px;border-bottom:1px solid var(--rule);opacity:0;transition:opacity .3s}
   .check.show{opacity:1}
-  .tick{font:700 14px/1.2 var(--mono);color:var(--pass);text-align:center}
-  .tick.bad{color:var(--fail)} .tick.warn{color:var(--hold)}
-  .check.fail{border-bottom-color:var(--fail-dim)}
-  .cn{font:500 13px/1.3 var(--sans);color:var(--ink)}
-  .check.fail .cn{color:var(--fail)}
+  .tick{font:600 15px/1.1 var(--disp);color:var(--ok);text-align:center}
+  .tick.bad{color:var(--pen)} .tick.warn{color:var(--hold)}
+  .check.fail{background:var(--pen-bg)}
+  .cn{font:500 12.5px/1.3 var(--sans);color:var(--ink)}
+  .check.fail .cn{color:var(--pen);font-weight:600}
   .check.held .cn{color:var(--hold)}
-  .cd{font:400 11.5px/1.5 var(--mono);color:var(--mut);margin-top:3px;letter-spacing:-.1px}
-  /* the exception is written in red pen, hanging in the margin like a review note */
-  .check.fail .cd{color:#e88a95;border-left:2px solid var(--fail);padding-left:9px;margin-left:-11px}
-  .check.held .cd{color:#dcb26a;border-left-color:var(--hold)}
-  .legend{font:400 10.5px/1.5 var(--mono);color:var(--dim);margin-top:11px;letter-spacing:.2px}
-  .legend b{color:var(--pass);font-weight:700} .legend i{color:var(--fail);font-style:normal;font-weight:700}
-  .legend u{color:var(--hold);text-decoration:none;font-weight:700}
+  .cd{font:400 11px/1.5 var(--mono);color:var(--ink-2);margin-top:3px}
+  .check.fail .cd{color:var(--pen)}
+  .check.held .cd{color:var(--hold)}
+  .legend{font:400 10px/1.75 var(--mono);color:var(--faint);margin-top:10px;
+    border-top:1px solid var(--rule);padding-top:9px}
+  .legend em{font:600 11px/1 var(--disp);font-style:normal;color:var(--ok)}
+  .legend i{font:600 11px/1 var(--disp);font-style:normal;color:var(--pen)}
 
-  /* the verdict stamp */
-  .verdict{margin-top:20px;padding-top:2px;display:flex;align-items:center;gap:18px}
-  .stamp{flex:0 0 auto;border:2.5px solid currentColor;border-radius:10px;padding:9px 16px;
-    font:700 22px/1 var(--disp);letter-spacing:1px;text-transform:uppercase;position:relative;
-    opacity:0;transform:rotate(-16deg) scale(1.7)}
-  .stamp .ss{display:block;font:500 9.5px/1 var(--mono);letter-spacing:1.5px;margin-top:5px;text-align:center;opacity:.85}
-  .stamp.show{animation:stampIn .46s cubic-bezier(.2,1.3,.5,1) forwards}
-  .stamp::after{content:"";position:absolute;inset:-7px;border:2px solid currentColor;border-radius:14px;opacity:0}
-  .stamp.show::after{animation:ring .5s ease-out .12s}
-  @keyframes stampIn{0%{opacity:0;transform:rotate(-16deg) scale(1.7)}
-    65%{opacity:1;transform:rotate(-4deg) scale(.9)}100%{opacity:1;transform:rotate(-4deg) scale(1)}}
-  @keyframes ring{0%{opacity:.55;transform:scale(.82)}100%{opacity:0;transform:scale(1.18)}}
-  .stamp.approved{color:var(--pass)} .stamp.rejected{color:var(--fail)} .stamp.needs_human{color:var(--hold)}
-  .wb{font:400 12.5px/1.5 var(--sans);color:var(--mut);opacity:0;transition:opacity .4s ease .1s;max-width:30ch}
+  .verdict{margin-top:16px;display:flex;align-items:center;gap:16px}
+  .stamp{flex:0 0 auto;border:2.5px solid currentColor;border-radius:3px;padding:8px 15px;
+    font:700 21px/1 var(--disp);letter-spacing:1px;text-transform:uppercase;position:relative;
+    opacity:0;transform:rotate(-15deg) scale(1.6)}
+  .stamp .ss{display:block;font:500 9px/1 var(--mono);letter-spacing:1.4px;margin-top:5px;text-align:center;opacity:.9}
+  .stamp.show{animation:stampIn .44s cubic-bezier(.2,1.3,.5,1) forwards}
+  @keyframes stampIn{0%{opacity:0;transform:rotate(-15deg) scale(1.6)}
+    65%{opacity:.92;transform:rotate(-3.5deg) scale(.92)}100%{opacity:.92;transform:rotate(-3.5deg) scale(1)}}
+  .stamp.approved{color:var(--ok)} .stamp.rejected{color:var(--pen)} .stamp.needs_human{color:var(--hold)}
+  .wb{font:400 12px/1.5 var(--sans);color:var(--ink-2);opacity:0;transition:opacity .4s ease .1s;max-width:30ch}
   .wb.show{opacity:1} .wb b{color:var(--ink);font-weight:600}
 
-  /* human-in-the-loop checkpoint */
   .hitl[hidden]{display:none}
-  .hitl{margin-top:15px;padding-top:15px;border-top:1px dashed var(--line);
-    display:flex;align-items:center;gap:14px;flex-wrap:wrap;opacity:0;transform:translateY(4px);
-    transition:opacity .4s ease,transform .4s ease}
-  .hitl.show{opacity:1;transform:none}
-  .hitl .cap{font:400 12px/1.45 var(--sans);color:var(--mut);max-width:23ch}
+  .hitl{margin-top:14px;padding-top:13px;border-top:1px dashed var(--rule-2);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;opacity:0;transition:opacity .4s ease}
+  .hitl.show{opacity:1}
+  .hitl .cap{font:400 11.5px/1.45 var(--sans);color:var(--ink-2);max-width:23ch}
   .hitl .cap b{color:var(--hold);font-weight:600}
-  .approve{cursor:pointer;font:600 13px/1 var(--sans);color:#161207;background:var(--brass);
-    border:1px solid var(--brass);padding:11px 16px;border-radius:9px;transition:.16s ease;
-    display:inline-flex;align-items:center;gap:9px;white-space:nowrap}
-  .approve:hover{filter:brightness(1.08)} .approve:active{transform:translateY(1px)}
+  .approve{cursor:pointer;font:600 12.5px/1 var(--sans);color:var(--stock);background:var(--ink);
+    border:1px solid var(--ink);padding:10px 15px;border-radius:2px;transition:.16s ease;
+    display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+  .approve:hover{background:#33302a} .approve:active{transform:translateY(1px)}
   .approve:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
-  .approve svg{width:15px;height:15px;stroke:#161207;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .approve svg{width:14px;height:14px;stroke:var(--stock);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 
-  /* Proof band: a summary schedule ruled off at the foot of the page. */
-  .proof{margin-top:34px;border-top:1.5px solid var(--line-2);display:grid;
+  .proof{margin-top:30px;border-top:2.5px solid var(--ink);display:grid;
     grid-template-columns:1.15fr 1fr 1fr 1.1fr}
   @media (max-width:840px){.proof{grid-template-columns:1fr 1fr}}
-  .stat{padding:19px 22px 2px;border-right:1px solid var(--line)}
-  .stat:first-child{padding-left:0}
-  .stat:last-child{border-right:none}
+  .stat{padding:16px 20px 2px;border-right:1px solid var(--rule)}
+  .stat:first-child{padding-left:0} .stat:last-child{border-right:none}
   @media (max-width:840px){.stat{padding-left:0;border-right:none}}
-  .stat .n{font:600 30px/1 var(--disp);letter-spacing:-.5px;font-variant-numeric:tabular-nums}
-  .stat.feat .n{color:var(--pass)}
-  .stat .l{font:400 11px/1.5 var(--sans);color:var(--mut);margin-top:8px;max-width:26ch}
-  .repro{margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-    font:400 12px/1.5 var(--sans);color:var(--dim);border-top:1px solid var(--line);padding-top:16px}
-  .repro code{font:500 12px/1 var(--mono);color:var(--brass);background:rgba(201,162,75,.08);
-    border:1px solid var(--line-2);border-radius:6px;padding:5px 8px}
+  .stat .n{font:600 27px/1 var(--disp);font-variant-numeric:tabular-nums}
+  .stat.feat .n{color:var(--ok)}
+  .stat .l{font:400 10.5px/1.5 var(--sans);color:var(--ink-2);margin-top:7px;max-width:26ch}
+  .repro{margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    font:400 11px/1.5 var(--sans);color:var(--faint);border-top:1px solid var(--rule);padding-top:13px}
+  .repro code{font:500 11px/1 var(--mono);color:var(--ink);background:var(--stock-2);
+    border:1px solid var(--edge);border-radius:2px;padding:4px 7px}
 
   @media (prefers-reduced-motion:reduce){
     *{animation-duration:.001ms!important;transition-duration:.001ms!important}
-    .check{opacity:1;transform:none} .stamp{opacity:1;transform:rotate(-4deg)}
+    .check{opacity:1} .stamp{opacity:.92;transform:rotate(-3.5deg)}
   }
 </style>
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div>
 <div class="wrap">
-  <header class="masthead">
-    <div class="brand">
-      <svg class="mark" viewBox="0 0 36 36" fill="none" stroke="#c9a24b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="16" y2="12"/><line x1="5" y1="18" x2="16" y2="18"/><line x1="5" y1="24" x2="13" y2="24"/><line x1="20" y1="5" x2="20" y2="31" opacity=".55"/><path d="M24 18 l3.5 3.5 l6.5 -8.5"/></svg>
+  <header class="wp">
+    <div class="wp-top">
+      <svg class="mark" viewBox="0 0 36 36" fill="none" stroke="#8a6d1f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="16" y2="12"/><line x1="5" y1="18" x2="16" y2="18"/><line x1="5" y1="24" x2="13" y2="24"/><line x1="20" y1="5" x2="20" y2="31" opacity=".55"/><path d="M24 18 l3.5 3.5 l6.5 -8.5"/></svg>
       <div>
         <div class="word">LedgerPilot</div>
-        <div class="tagline">autonomous month-end close · the gate is the only path to a write</div>
+        <div class="tagline">autonomous month-end close &middot; the gate is the only path to a write</div>
+      </div>
+      <div class="wpref">
+        W/P REF &nbsp;<b>LP-1</b><br>
+        TRACK &nbsp;<b>4 &middot; Autopilot Agent</b>
       </div>
     </div>
-    <div class="badges">
-      <span class="chip live"><i></i>backend live on Alibaba Cloud ECS</span>
-      <span class="chip">Track 4 · Autopilot Agent</span>
+    <div class="wp-grid">
+      <div class="wp-f">Client<b>My Company Pte Ltd</b></div>
+      <div class="wp-f">Period<b>June 2026</b></div>
+      <div class="wp-f">Prepared by<b>agent &middot; qwen3.7-max</b></div>
+      <div class="wp-f">Reviewed by<b>deterministic gate <span class="live">&middot; live on Alibaba Cloud ECS</span></b></div>
     </div>
   </header>
 
@@ -407,7 +389,13 @@ HTML = r"""<!doctype html>
     <section class="gate" aria-label="deterministic gate">
       <div class="ghead"><span class="t">Deterministic gate</span><span class="s">8 checks · no LLM</span></div>
       <div class="checks" id="checks"></div>
-      <div class="legend"><b>✓</b> passed &nbsp; <i>✗</i> exception, refused &nbsp; <u>△</u> held for a human</div>
+      <div class="legend">
+        Tick legend &nbsp;
+        <em>F</em> footed &nbsp; <em>A</em> agreed to the chart of accounts &nbsp; <em>X</em> tested &nbsp;
+        <em>C</em> cut-off, period open &nbsp; <em>S</em> segregation confirmed &nbsp;
+        <em>L</em> within delegated limit &nbsp; <em>T</em> traced to source document &nbsp;
+        <i>&Delta;</i> variance &mdash; exception, or held for a human
+      </div>
       <div class="verdict">
         <div class="stamp" id="stamp"></div>
         <div class="wb" id="wb"></div>
@@ -437,6 +425,11 @@ const $=id=>document.getElementById(id);
 const nice={balance:'Balance',account_validity:'Account validity',no_self_contra:'No self-contra',
   positive_amounts:'Positive amounts',period_lock:'Period lock',segregation:'Segregation of duties',
   approval_threshold:'Approval threshold',reconciliation:'Reconcile to source'};
+// Real audit tick marks. A working paper marks each procedure with the tick for the
+// procedure performed, and carries a legend defining them, because firms use their
+// own. An exception is marked with a delta: a variance requiring investigation.
+const TICK={balance:'F',account_validity:'A',no_self_contra:'X',positive_amounts:'X',
+  period_lock:'C',segregation:'S',approval_threshold:'L',reconciliation:'T'};
 const stampWord={approved:['APPROVED','written to the ledger'],rejected:['REFUSED','nothing written'],
   needs_human:['HOLD','escalated to a human']};
 const PEN='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2 2 0 0 0-3-3L5 17v3z"/><path d="M14 7l3 3"/></svg>';
@@ -474,8 +467,8 @@ function runGate(s, st, canApprove){
   st.checks.forEach((c,i)=>{
     const row=document.createElement('div'); row.className='check';
     const cls=c.passed?'':(c.severity==='warning'?'warn':'bad');
-    const mark=c.passed?'✓':(c.severity==='warning'?'△':'✗');
-    if(!c.passed) row.classList.add(c.severity==='warning' ? 'fail held' : 'fail');
+    const mark=c.passed?(TICK[c.check]||'X'):'\u0394';
+    if(!c.passed){ row.classList.add('fail'); if(c.severity==='warning') row.classList.add('held'); }
     row.innerHTML=`<div class="tick ${cls}">${mark}</div><div><div class="cn">${nice[c.check]||c.check}</div>
       <div class="cd">${c.detail}</div></div>`;
     checks.appendChild(row);
@@ -495,9 +488,18 @@ function runGate(s, st, canApprove){
 
 function render(s){
   current=s;
-  paintPaper(s);
+  // A throw inside the render loop silently truncates the page: the remaining
+  // checks, the stamp and the sign-off block just never appear, and the page still
+  // looks plausible. Surface it instead of shipping a half-rendered verdict.
+  try{ paintPaper(s); }catch(e){ console.error('paintPaper failed', e); }
   const p=$('pulse'); p.classList.remove('run'); void p.offsetWidth; if(!reduce) p.classList.add('run');
-  runGate(s, {checks:s.checks,decision:s.decision,writeback:s.writeback}, !!s.approved);
+  try{
+    runGate(s, {checks:s.checks,decision:s.decision,writeback:s.writeback}, !!s.approved);
+  }catch(e){
+    console.error('runGate failed', e);
+    document.getElementById('wb').innerHTML='<b>Render error.</b> '+e.message;
+    document.getElementById('wb').className='wb show';
+  }
 }
 
 $('approve').onclick=()=>{
