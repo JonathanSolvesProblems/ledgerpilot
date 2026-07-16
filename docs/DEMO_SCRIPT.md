@@ -79,7 +79,10 @@ Prerequisites: the ECS instance is up (`python scripts/deploy_ecs.py` prints the
 
 ON SCREEN:
 1. Terminal: `ssh -i ~/.ssh/ledgerpilot_ecs root@47.84.116.56`. The prompt becomes `root@ledgerpilot`.
-2. Run `curl http://100.100.100.200/latest/meta-data/instance-id` then `.../region-id`. It prints `i-t4n1i5p7bz4ypj122e6q` and `ap-southeast-1`.
+2. Rest on the login banner: it reads **"Welcome to Alibaba Cloud Elastic Compute Service !"** and the prompt becomes `root@ledgerpilot`.
+3. Run these ONE AT A TIME (curl prints no trailing newline, so without the `; echo` the two values run together on screen):
+   `curl -s http://100.100.100.200/latest/meta-data/instance-id; echo`  -> `i-t4n1i5p7bz4ypj122e6q`
+   `curl -s http://100.100.100.200/latest/meta-data/region-id; echo`    -> `ap-southeast-1`
 
 NARRATION: "This is not my laptop. That is Alibaba Cloud's instance metadata service, which only answers from inside a real ECS instance, and it is telling us the instance ID and region. The LedgerPilot backend runs here."
 
