@@ -45,6 +45,14 @@
     .wrap{padding:22px 18px}
     .wrap::before,.wrap::after{display:none}
   }
+  /* changing scenario feeds the next form: the sprocket holes advance one pitch,
+     in steps, the way a tractor feed moves paper. */
+  @keyframes feed{from{background-position-y:-26px}to{background-position-y:0}}
+  .wrap.feed::before,.wrap.feed::after{animation:feed .34s steps(3,end)}
+  /* a tick does not fade in, it is struck onto the paper */
+  @keyframes strike{0%{opacity:0;transform:scale(1.5)}55%{opacity:1;transform:scale(.9)}
+    100%{opacity:1;transform:scale(1)}}
+  .check.show .tick{animation:strike .15s cubic-bezier(.3,1.5,.5,1) both}
   .grain{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:.05;mix-blend-mode:multiply;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 
@@ -208,6 +216,7 @@
   @media (prefers-reduced-motion:reduce){
     *{animation-duration:.001ms!important;transition-duration:.001ms!important}
     .check{opacity:1} .stamp{opacity:.9;transform:rotate(-3deg)}
+    .check.show .tick{animation:none;transform:none;opacity:1}
   }
 </style>
 </head>
@@ -382,6 +391,9 @@ function render(s){
   // looks plausible. Surface it instead of shipping a half-rendered verdict.
   try{ paintPaper(s); }catch(e){ console.error('paintPaper failed', e); }
   const p=$('pulse'); p.classList.remove('run'); void p.offsetWidth; if(!reduce) p.classList.add('run');
+  // advance the paper by one perforation
+  const w=document.querySelector('.wrap');
+  w.classList.remove('feed'); void w.offsetWidth; if(!reduce) w.classList.add('feed');
   try{
     runGate(s, {checks:s.checks,decision:s.decision,writeback:s.writeback}, !!s.approved);
   }catch(e){
