@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>LedgerPilot — the gate is the only path to a write</title>
-<meta name="description" content="An autonomous month-end-close agent on Qwen Cloud. Qwen proposes journal entries; a deterministic gate is the only path to a write. Same model, same tasks: gate off, 7 wrong entries hit the ledger; gate on, 0."/>
+<meta name="description" content="An autonomous month-end-close agent on Qwen Cloud. Qwen proposes journal entries; a deterministic gate is the only path to a write. Same model, same tasks: gate off, wrong entries hit the ledger; gate on, zero."/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36' fill='none' stroke='%23c9a24b' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='5' y1='12' x2='16' y2='12'/%3E%3Cline x1='5' y1='18' x2='16' y2='18'/%3E%3Cline x1='5' y1='24' x2='13' y2='24'/%3E%3Cline x1='20' y1='5' x2='20' y2='31' opacity='.6'/%3E%3Cpath d='M24 18 l3.5 3.5 l6.5 -8.5'/%3E%3C/svg%3E"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -209,8 +209,8 @@
 
   <section class="lede">
     <p class="thesis">Qwen drafts the journal entries. A deterministic gate of eight exact checks decides what reaches the ledger. <b>Same model, same 39 close tasks, same live ERP:</b></p>
-    <div class="cf" role="img" aria-label="Gate off: 7 wrong entries posted. Gate on: 0 wrong entries.">
-      <div class="cf-arm off"><span class="cf-k">gate off</span><span class="cf-v">7</span><span class="cf-u">wrong entries posted to the ledger</span></div>
+    <div class="cf" role="img" aria-label="Gate off: 5 wrong entries posted. Gate on: 0 wrong entries.">
+      <div class="cf-arm off"><span class="cf-k">gate off</span><span class="cf-v">5</span><span class="cf-u">wrong entries posted to the ledger</span></div>
       <div class="cf-arrow">→</div>
       <div class="cf-arm on"><span class="cf-k">gate on</span><span class="cf-v">0</span><span class="cf-u">wrong entries</span></div>
     </div>

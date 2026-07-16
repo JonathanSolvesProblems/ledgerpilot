@@ -2,7 +2,7 @@ Two recording scripts, grounded in the exact on-screen output. The demo opens on
 
 > Never narrate a specific model mistake count. Sampling varies between runs (the flagship is stable at 97.4%, qwen-flash moves a few points), so state the invariant instead: every mistake caught, zero wrong writes, every run. See the note at the end of `demo_script.md`.
 
-> The primary, up-to-date shot list and voiceover is `demo_script.md` in the repo root, which leads with the counterfactual (7 wrong entries gate-off vs 0 gate-on) and the MCP tamper scene. This file is the longer reference version; where they differ, follow `demo_script.md`.
+> The primary, up-to-date shot list and voiceover is `demo_script.md` in the repo root, which leads with the counterfactual (wrong entries gate-off vs 0 gate-on) and the MCP tamper scene. This file is the longer reference version; where they differ, follow `demo_script.md`.
 
 ---
 

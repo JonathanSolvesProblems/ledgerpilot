@@ -17,7 +17,7 @@ Month-end close is one of the most error-prone, labor-intensive workflows in fin
 - A typical close still takes about **6.4 business days**, and only around **40% of finance teams** are confident in their numbers (APQC; Ventana/ISG close benchmarks).
 - Manual journal entries are a leading source of financial-statement error and restatement. The PCAOB ties manual GL adjustments to internal-control failures (PCAOB AS 2201, ICFR).
 - Weak segregation of duties is a top enabler of occupational fraud, with a median loss per scheme in the six figures (ACFE Report to the Nations).
-- Foundation models are not reliable enough to trust with unsupervised posting. The DualEntry Accounting AI Benchmark 2026 found the best model still fails roughly **1 in 5** real accounting tasks (top model 77.3%).
+- Foundation models are not reliable enough to trust with unsupervised posting. On the DualEntry Accounting AI Benchmark the top model still fails roughly **1 in 6** real accounting tasks (top model 83.2%, leaderboard retrieved July 2026).
 
 That last number is the whole point. A naive agent that writes directly to the ledger is worse than no automation: a single hallucinated, unbalanced, or misposted entry in a system of record is an audit finding, not a convenience. So I built LedgerPilot around a rule: the model may reason and propose, but it may never write. Every write passes a deterministic gate first.
 
@@ -68,10 +68,10 @@ unstructured inputs ──► Qwen planner ──────► DETERMINISTIC G
 
 | | Entries posted | Wrong entries in the ledger |
 |---|---|---|
-| Gate OFF | 39 | **7** |
-| Gate ON | 32 | **0** |
+| Gate OFF | 39 | **5** |
+| Gate ON | 34 | **0** |
 
-The seven wrong entries were posted for real with the gate off (transcript: `docs/counterfactual_proof.txt`, generated on ECS). Each balances, uses real accounts, and passes a trial balance: salaries paid out of accounts receivable, cost-of-goods booked to receivables and revenue. **Same model, same tasks, same ledger; 7 wrong entries become 0. The model did not get better. The ledger did.** That is the number to remember, and it is impact in a general ledger, not a percentage of my own test set.
+The wrong entries were posted for real with the gate off, under references starting `NG-WRONG` (transcript: `docs/counterfactual_proof.txt`, generated on ECS). Each balances, uses real accounts, and passes a trial balance: salaries paid out of accounts receivable, cost-of-goods booked to receivables and revenue. **Same model, same tasks, same ledger; the wrong entries become 0. The model did not get better. The ledger did.** That is the number to remember, and it is impact in a general ledger, not a percentage of my own test set.
 
 The rest of this section is the evidence for *why* that works: the gate's decision logic is sound at scale, and it holds on live model output.
 

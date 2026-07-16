@@ -123,9 +123,9 @@
   <!-- Counterfactual callout -->
   <rect x="40" y="432" width="530" height="118" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" rx="10"/>
   <text x="60" y="457" class="boxlabel" fill="#14532d">Counterfactual: same model, same 39 tasks, same live ledger</text>
-  <text x="60" y="481" class="metric" fill="#991b1b">Gate OFF  ·  39 posted  ·  7 WRONG entries now in the ledger</text>
-  <text x="60" y="503" class="metric" fill="#14532d">Gate ON   ·  32 posted  ·  0 wrong entries</text>
-  <text x="60" y="527" class="boxlabel" fill="#14532d" font-size="14">7 wrong writes become 0. The model did not get better; the ledger did.</text>
+  <text x="60" y="481" class="metric" fill="#991b1b">Gate OFF  ·  39 posted  ·  5 WRONG entries now in the ledger</text>
+  <text x="60" y="503" class="metric" fill="#14532d">Gate ON   ·  34 posted  ·  0 wrong entries</text>
+  <text x="60" y="527" class="boxlabel" fill="#14532d" font-size="14">The wrong writes become 0. The model did not get better; the ledger did.</text>
   <text x="60" y="544" class="boxsub">measured live (39 tasks, on ECS): 8 model mistakes across 2 models, 8 caught, 0 wrong writes</text>
 
   <!-- Cloud band -->

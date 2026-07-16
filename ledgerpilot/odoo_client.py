@@ -60,9 +60,29 @@ class XmlrpcOdooClient:
             self._connect()
 
     def _kw(self, model, method, args, opts=None):
+        """Call Odoo, reconnecting once if the transport (not the server) failed.
+
+        `xmlrpc.client` reuses a single HTTP connection, so one dropped keep-alive
+        poisons every later call on the proxy with ResponseNotReady, and a long run
+        dies partway through with the ledger half-written. A server-side `Fault` is a
+        real error and is re-raised untouched; only transport failures are retried,
+        and only once, against a freshly authenticated proxy.
+        """
         cfg = self.config
-        return self._models.execute_kw(cfg.odoo_db, self._uid, cfg.odoo_api_key,
-                                       model, method, args, opts or {})
+        last: Exception | None = None
+        for attempt in (1, 2):
+            try:
+                return self._models.execute_kw(cfg.odoo_db, self._uid, cfg.odoo_api_key,
+                                               model, method, args, opts or {})
+            except xmlrpc_client.Fault:
+                raise  # the server answered and said no; retrying changes nothing
+            except Exception as exc:  # noqa: BLE001 - transport layer, many shapes
+                last = exc
+                if attempt == 1:
+                    self._connect()
+        raise OdooClientError(
+            f"Odoo transport failed on {model}.{method} after a reconnect: {last}"
+        ) from last
 
     def _account_id(self, code: str) -> int:
         if code in self._account_ids:
@@ -102,9 +122,13 @@ class XmlrpcOdooClient:
         #                 a memo edit or a change to what content_hash covers.
         # Neither is atomic (see the caveat below), so both are best-effort guards
         # against a sequential retry, not a substitute for a unique constraint.
+        # Both guards must ignore cancelled moves. A cancelled entry is not in the
+        # ledger, so letting one match here would suppress a legitimate re-post and
+        # silently return the id of a move that no longer counts.
         if lp_hash:
             existing = self._kw("account.move", "search",
-                                [[["narration", "like", f"ledgerpilot:{lp_hash}"]]], {"limit": 1})
+                                [[["narration", "like", f"ledgerpilot:{lp_hash}"],
+                                  ["state", "!=", "cancel"]]], {"limit": 1})
             if existing:
                 return int(existing[0])
         if ref:

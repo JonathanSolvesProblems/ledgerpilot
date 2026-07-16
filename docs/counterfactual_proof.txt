@@ -3,7 +3,7 @@
  Generated ON Alibaba Cloud ECS. ARM A posts to a live Odoo 19 demo instance.
  Wrong entries are posted under refs prefixed NG- (cleaned up after screenshots).
 ================================================================================
-generated (UTC) : 2026-07-15 03:18:34
+generated (UTC) : 2026-07-16 13:29:41
 instance-id     : i-t4n1i5p7bz4ypj122e6q
 model           : qwen-flash
 
@@ -25,7 +25,7 @@ ARM B      : gate ON, only entries that pass all 8 checks are posted
   [7/39] accrued_payroll        model:correct  gate-off:POSTED  gate-on:approved
   [8/39] utilities_accrual      model:correct  gate-off:POSTED  gate-on:approved
   [9/39] prepaid_insurance      model:correct  gate-off:POSTED  gate-on:approved
-  [10/39] rent_prepaid_trap      model:WRONG    gate-off:POSTED  gate-on:rejected
+  [10/39] rent_prepaid_trap      model:correct  gate-off:POSTED  gate-on:approved
   [11/39] equipment              model:correct  gate-off:POSTED  gate-on:approved
   [12/39] service_revenue        model:correct  gate-off:POSTED  gate-on:approved
   [13/39] interest_income        model:correct  gate-off:POSTED  gate-on:approved
@@ -42,7 +42,7 @@ ARM B      : gate ON, only entries that pass all 8 checks are posted
   [24/39] prepaid_rent_quarter   model:correct  gate-off:POSTED  gate-on:approved
   [25/39] equipment_cash         model:correct  gate-off:POSTED  gate-on:approved
   [26/39] ar_collection_2        model:correct  gate-off:POSTED  gate-on:approved
-  [27/39] ap_payment_2           model:WRONG    gate-off:POSTED  gate-on:rejected
+  [27/39] ap_payment_2           model:correct  gate-off:POSTED  gate-on:approved
   [28/39] vat_payment_2          model:correct  gate-off:POSTED  gate-on:approved
   [29/39] interest_income_2      model:correct  gate-off:POSTED  gate-on:approved
   [30/39] accrue_utilities_2     model:correct  gate-off:POSTED  gate-on:approved
@@ -59,25 +59,31 @@ ARM B      : gate ON, only entries that pass all 8 checks are posted
 ==============================================================================
  RESULT: wrong journal entries now sitting in a real general ledger
 ==============================================================================
-  ARM A  gate OFF :  39 entries posted, 7 of them WRONG
-  ARM B  gate ON  :  32 entries posted, 0 of them WRONG
+  ARM A  gate OFF :  39 entries posted, 5 of them WRONG
+  ARM B  gate ON  :  34 entries posted, 0 of them WRONG
 
   The wrong entries the gate refused, now posted for real by ARM A:
-    NG-utilities                 Dr 6200   Cr 1100      1230.00   (should be Dr 6200 Cr 1000)
-    NG-salaries                  Dr 6000   Cr 1100      8200.00   (should be Dr 6000 Cr 1000)
-    NG-rent_prepaid_trap         Dr 1200   Cr 1100      4500.00   (should be Dr 1200 Cr 1000)
-    NG-ap_payment_2              Dr 2000   Cr 1100       780.00   (should be Dr 2000 Cr 1000)
-    NG-salaries_cash             Dr 6000   Cr 1100      6800.00   (should be Dr 6000 Cr 1000)
-    NG-cogs_on_credit_2          Dr 1100   Cr 4000      3900.00   (should be Dr 5000 Cr 2000)
-    NG-utilities_cash_2          Dr 6200   Cr 1100      1100.00   (should be Dr 6200 Cr 1000)
+    NG-WRONG-utilities           Dr 6200   Cr 1100      1230.00   (should be Dr 6200 Cr 1000)
+    NG-WRONG-salaries            Dr 6000   Cr 1100      8200.00   (should be Dr 6000 Cr 1000)
+    NG-WRONG-salaries_cash       Dr 6000   Cr 1100      6800.00   (should be Dr 6000 Cr 1000)
+    NG-WRONG-cogs_on_credit_2    Dr 1100   Cr 4000      3900.00   (should be Dr 5000 Cr 2000)
+    NG-WRONG-utilities_cash_2    Dr 6200   Cr 1100      1100.00   (should be Dr 6200 Cr 1000)
 
   Every one of those balances. Every one uses real, postable accounts.
   A trial balance passes all of them.
 
   Same model. Same 39 tasks. Same ledger.
-  Without the gate: 7 wrong entries. With it: 0.
+  Without the gate: 5 wrong entries. With it: 0.
   The model did not get better. The ledger did.
 ==============================================================================
 
-  (open Odoo and filter ref starting 'NG-' to see the damage;
-   run with --cleanup to cancel them)
+  In Odoo (Accounting > Journal Entries), filter Reference on:
+    NG-WRONG   ->  the 5 wrong entries the gate refused, posted anyway
+                    (open one: the narration says what it booked and what the
+                     source document actually required)
+    NG-ok      ->  the 34 gate-off entries that happened to be right
+    GT-        ->  the 34 entries the gate approved and wrote
+
+  Re-running can report a different count (model sampling varies) while the
+  ledger keeps these moves, so screenshot before you re-run.
+  Cancel them all with:  python scripts/counterfactual.py --cleanup

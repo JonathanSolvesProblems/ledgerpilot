@@ -126,3 +126,99 @@ def test_xmlrpc_client_is_idempotent_server_side(monkeypatch):
     move_id = client.create_move(SAMPLE_PAYLOAD)
     assert move_id == 999                 # returned the existing move
     assert proxies[-1].created == []      # never posted again
+
+
+class DedupeSpyProxy(FakeServerProxy):
+    """Records the search domains the client uses to look for an existing move."""
+
+    def __init__(self, url):
+        super().__init__(url)
+        self.move_searches = []
+
+    def execute_kw(self, db, uid, key, model, method, args, kw=None):
+        if model == "account.move" and method == "search":
+            self.move_searches.append(args[0])
+            return []
+        return super().execute_kw(db, uid, key, model, method, args, kw)
+
+
+def _spy_client(monkeypatch):
+    import ledgerpilot.odoo_client as oc
+
+    proxies = []
+
+    def fake_proxy(url):
+        p = DedupeSpyProxy(url)
+        proxies.append(p)
+        return p
+
+    monkeypatch.setattr(oc.xmlrpc_client, "ServerProxy", fake_proxy)
+    client = XmlrpcOdooClient(config=blank_config(
+        odoo_url="http://ecs-odoo:8069", odoo_db="lp", odoo_username="agent", odoo_api_key="k",
+    ))
+    client.create_move(SAMPLE_PAYLOAD)
+    return proxies[-1]
+
+
+def test_a_cancelled_move_never_suppresses_a_re_post(monkeypatch):
+    """Both dedupe guards must ignore cancelled moves.
+
+    A cancelled entry is not in the ledger. If either guard matched one, a
+    legitimate re-post would be silently skipped and the caller handed the id of a
+    move that no longer counts. This bit us for real: after cancelling a run, the
+    hash guard matched the cancelled moves and two thirds of the next run never
+    posted.
+    """
+    proxy = _spy_client(monkeypatch)
+    dedupe_searches = [d for d in proxy.move_searches
+                       if any("narration" in str(c) or "ref" in str(c) for c in d)]
+    assert dedupe_searches, "expected the client to search before creating"
+    for domain in dedupe_searches:
+        assert ["state", "!=", "cancel"] in domain, (
+            f"dedupe search {domain} does not exclude cancelled moves"
+        )
+
+
+class FlakyProxy(FakeServerProxy):
+    """Fails the first execute_kw at the transport layer, like a dropped keep-alive."""
+
+    calls = 0
+
+    def execute_kw(self, db, uid, key, model, method, args, kw=None):
+        FlakyProxy.calls += 1
+        if FlakyProxy.calls == 1:
+            from http.client import ResponseNotReady
+            raise ResponseNotReady("Request-sent")
+        return super().execute_kw(db, uid, key, model, method, args, kw)
+
+
+def test_transport_failure_reconnects_and_retries(monkeypatch):
+    """A dropped connection must not kill a long run mid-ledger."""
+    import ledgerpilot.odoo_client as oc
+
+    FlakyProxy.calls = 0
+    monkeypatch.setattr(oc.xmlrpc_client, "ServerProxy", FlakyProxy)
+    client = XmlrpcOdooClient(config=blank_config(
+        odoo_url="http://ecs-odoo:8069", odoo_db="lp", odoo_username="agent", odoo_api_key="k",
+    ))
+    assert client.create_move(SAMPLE_PAYLOAD) == 4242  # survived the blip
+
+
+def test_server_faults_are_not_retried(monkeypatch):
+    """A Fault means the server answered and refused; retrying would just repeat it."""
+    import ledgerpilot.odoo_client as oc
+
+    class FaultingProxy(FakeServerProxy):
+        seen = 0
+
+        def execute_kw(self, db, uid, key, model, method, args, kw=None):
+            FaultingProxy.seen += 1
+            raise oc.xmlrpc_client.Fault(2, "Only posted entries can be reset to draft.")
+
+    monkeypatch.setattr(oc.xmlrpc_client, "ServerProxy", FaultingProxy)
+    client = XmlrpcOdooClient(config=blank_config(
+        odoo_url="http://ecs-odoo:8069", odoo_db="lp", odoo_username="agent", odoo_api_key="k",
+    ))
+    with pytest.raises(oc.xmlrpc_client.Fault):
+        client.create_move(SAMPLE_PAYLOAD)
+    assert FaultingProxy.seen == 1, "a server Fault must not be retried"

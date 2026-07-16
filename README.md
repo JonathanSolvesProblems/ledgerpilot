@@ -1,8 +1,8 @@
 # LedgerPilot
 
-![license](https://img.shields.io/badge/license-Apache--2.0-blue) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![ledger](https://img.shields.io/badge/gate%20off%20vs%20on-7%20wrong%20writes%20vs%200-brightgreen) ![built on](https://img.shields.io/badge/runs%20on-Alibaba%20Cloud%20ECS%20%2B%20Qwen-ff6a00)
+![license](https://img.shields.io/badge/license-Apache--2.0-blue) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![ledger](https://img.shields.io/badge/gate%20off%20vs%20on-wrong%20writes%20vs%200-brightgreen) ![built on](https://img.shields.io/badge/runs%20on-Alibaba%20Cloud%20ECS%20%2B%20Qwen-ff6a00)
 
-**Same Qwen model, same 39 month-end close tasks, same live ERP. Without the gate, 7 wrong journal entries get posted to the ledger. With it, 0. The model did not get better; the ledger did.**
+**Same Qwen model, same 39 month-end close tasks, same live ERP. Without the gate, 5 wrong journal entries get posted to the ledger. With it, 0. The model did not get better; the ledger did.**
 
 LedgerPilot is an autonomous month-end-close agent. Qwen proposes journal entries from messy financial inputs; a deterministic, auditable gate is the only path to a write. The point of the project is not that the agent posts to a real ERP (many do). It is that the write side is *measured*: the agent posts to a live Odoo ledger behind a control whose false-write rate is reported with a confidence bound, and the [counterfactual](docs/counterfactual_proof.txt) shows exactly what that control keeps out of the books.
 
@@ -18,10 +18,12 @@ Built for the **Global AI Hackathon Series with Qwen Cloud** (Track 4: **Autopil
 
 | | Entries posted | Wrong entries in the ledger |
 |---|---|---|
-| **Gate OFF** | 39 | **7** |
-| **Gate ON** | 32 | **0** |
+| **Gate OFF** | 39 | **5** |
+| **Gate ON** | 34 | **0** |
 
-The seven wrong entries the gate refused were posted for real with the gate off, so you can open the ledger and see them. Each one balances, uses real postable accounts, and passes a trial balance. Examples from the run: salaries paid out of Accounts receivable (`Dr 6000 / Cr 1100`) instead of Cash; a cost-of-goods entry booked to receivables and revenue (`Dr 1100 / Cr 4000`) instead of COGS and payables. Transcript: [docs/counterfactual_proof.txt](docs/counterfactual_proof.txt), generated on Alibaba Cloud ECS. This is the number to remember: **same model, same tasks, same ledger; 7 wrong entries become 0.**
+The five wrong entries the gate refused were posted for real with the gate off, so you can open the ledger and see them (they are the moves whose reference starts `NG-WRONG`, and each one's narration says what the model booked and what the source document actually required). Every one balances, uses real postable accounts, and passes a trial balance. Examples from committed runs: salaries paid out of Accounts receivable (`Dr 6000 / Cr 1100`) instead of Cash; a cost-of-goods entry booked to receivables and revenue (`Dr 1100 / Cr 4000`) instead of COGS and payables. Transcript: [docs/counterfactual_proof.txt](docs/counterfactual_proof.txt), generated on Alibaba Cloud ECS.
+
+This is the thing to remember: **same model, same tasks, same ledger; the wrong entries become 0.** The gate-off count moves with the model's sampling (across our runs it has been **5 to 7**); the gate-on count has been **0 in every run**. That asymmetry is the whole claim, and it is the part that does not drift.
 
 The two numbers below say *why* that works: the gate's decision logic is sound (1), and it holds on real model output (2).
 
@@ -166,7 +168,7 @@ python scripts/deploy_ecs.py     # creates the VPC, security group, key pair and
 Month-end close is slow and error-prone at scale, and the harm is per-entry, not abstract:
 
 - A typical close still takes **~6.4 business days**, and only ~40% of finance teams are confident in their numbers (widely cited close benchmarks from APQC and Ventana/ISG).
-- **LLMs post wrong entries at a rate you cannot ignore.** On a real accounting-workflow benchmark, the top model scores **83.2%, so roughly 1 in 6 real accounting tasks is still wrong** ([DualEntry Accounting AI Benchmark](https://www.dualentry.com/accounting-ai-benchmark), leaderboard retrieved July 2026); and in single-control agent settings, **45-48% of an agent's failures are silent false successes** (it reports done while the environment says otherwise) ([arXiv:2606.09863](https://arxiv.org/pdf/2606.09863)). A single wrong journal entry posted to a system of record is an audit adjustment, and every audit-adjusting entry carries review, rework, and restatement-risk cost. That per-entry cost is exactly what a hard write gate removes, and the counterfactual above shows it: 7 such entries kept out of the ledger on a 39-task close, from qwen-flash alone.
+- **LLMs post wrong entries at a rate you cannot ignore.** On a real accounting-workflow benchmark, the top model scores **83.2%, so roughly 1 in 6 real accounting tasks is still wrong** ([DualEntry Accounting AI Benchmark](https://www.dualentry.com/accounting-ai-benchmark), leaderboard retrieved July 2026); and in single-control agent settings, **45-48% of an agent's failures are silent false successes** (it reports done while the environment says otherwise) ([arXiv:2606.09863](https://arxiv.org/pdf/2606.09863)). A single wrong journal entry posted to a system of record is an audit adjustment, and every audit-adjusting entry carries review, rework, and restatement-risk cost. That per-entry cost is exactly what a hard write gate removes, and the counterfactual above shows it: five such entries kept out of the ledger on a single 39-task close, from qwen-flash alone.
 - Manual GL adjustments are a leading source of **financial-statement error and restatement** ([PCAOB AS 2201, ICFR](https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201)); weak **segregation of duties** is a top enabler of occupational fraud, median loss per scheme in the six figures ([ACFE Report to the Nations](https://www.acfe.com/report-to-the-nations/)).
 - Detecting seeded errors is not the same as refusing to write them: the write side is the unsolved part (synthetic controlled-error work such as *Monitoring Agentic Systems Before They're Reliable*, [arXiv:2606.02494](https://arxiv.org/html/2606.02494v1), §4.1).
 
@@ -220,7 +222,7 @@ python -m eval.harness --live                    # measured false-write rate + W
 | Proof the backend ran on Alibaba Cloud (transcript) | [docs/ecs_proof.txt](docs/ecs_proof.txt), generated on ECS instance `i-t4n1i5p7bz4ypj122e6q` |
 | Real ERP write (bonus) | [scripts/real_odoo_write.py](scripts/real_odoo_write.py); posted `MISC/2026/06/0001` from local ([docs/real_write_proof.txt](docs/real_write_proof.txt)) and `MISC/2026/06/0002` from ECS ([docs/ecs_proof.txt](docs/ecs_proof.txt)) to a live Odoo 19 |
 | MCP integration (Technical Depth) | [ledgerpilot/mcp_server.py](ledgerpilot/mcp_server.py) + [scripts/mcp_demo.py](scripts/mcp_demo.py): Qwen posts `move_id 3` through MCP and is refused when told to tamper |
-| Counterfactual (Impact) | [scripts/counterfactual.py](scripts/counterfactual.py), [docs/counterfactual_proof.txt](docs/counterfactual_proof.txt): 7 wrong entries gate-off vs 0 gate-on |
+| Counterfactual (Impact) | [scripts/counterfactual.py](scripts/counterfactual.py), [docs/counterfactual_proof.txt](docs/counterfactual_proof.txt): wrong entries posted gate-off vs 0 gate-on |
 | Architecture diagram | [docs/architecture.svg](docs/architecture.svg), [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Demo video script | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) |
 | Text description | [docs/DEVPOST.md](docs/DEVPOST.md) |

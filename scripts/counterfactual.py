@@ -33,6 +33,7 @@ import os
 import sys
 from datetime import date
 from pathlib import Path
+from xmlrpc import client as xmlrpc_client
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -53,15 +54,79 @@ def rekey(entry: JournalEntry, prefix: str, name: str) -> JournalEntry:
     return entry.model_copy(update={"ref": f"{prefix}-{name}"[:60]})
 
 
+def arm_a_ref(correct: bool, name: str) -> str:
+    """Gate-off refs say plainly which entries are the damage.
+
+    Filtering the ledger on `NG-WRONG` then shows exactly the wrong entries the gate
+    would have refused, and nothing else. Without this every gate-off entry looks
+    alike in Odoo and the whole point of the counterfactual is invisible.
+    """
+    return f"{'NG-WRONG' if not correct else 'NG-ok'}-{name}"[:60]
+
+
+def arm_a_narration(correct: bool, entry: JournalEntry, task) -> str:
+    """Make each wrong move explain its own error when a reader opens it."""
+    if correct:
+        return f"GATE OFF - posted as the model proposed (this one happens to be correct): {entry.memo}"
+    dr = "/".join(ln.account_code for ln in entry.lines if ln.debit > 0) or "-"
+    cr = "/".join(ln.account_code for ln in entry.lines if ln.credit > 0) or "-"
+    return (
+        f"GATE OFF - WRONG. The model booked Dr {dr} / Cr {cr}; the source document "
+        f"requires Dr {task.expected_debit} / Cr {task.expected_credit}. This entry "
+        f"balances and uses real accounts, so a trial balance passes it. LedgerPilot's "
+        f"gate refused this entry; it is only in the ledger because the gate was off."
+    )
+
+
 def cleanup(client: XmlrpcOdooClient) -> None:
+    """Cancel BOTH arms' moves, so the next run leaves a ledger that matches it exactly.
+
+    Both arms have to go. The arms are keyed by ref per task, so a re-run dedupes
+    against whatever a previous run left behind; since which tasks the model gets
+    wrong shifts between runs, the surviving GT- set becomes the *union* of runs and
+    stops matching any single transcript. Cancelling both and re-running keeps the
+    ledger and the committed transcript in agreement.
+
+    Only NG- and GT- are touched. The real governed writes (LP-*) are never cancelled.
+
+    Two Odoo quirks to work around:
+      1. Only a *posted* move can be reset to draft. A move created but never posted
+         is already draft, so the two states need different handling; a run that died
+         between create and post leaves exactly that.
+      2. button_draft/button_cancel return None, and Odoo's XML-RPC marshaller
+         refuses to encode None. The action succeeds on the server and then the
+         *response* blows up, so that specific fault has to be treated as success.
+    """
     client._ensure()
-    ids = client._kw("account.move", "search", [[["ref", "like", "NG-"]]])
-    if not ids:
+    arms = ["|", ["ref", "like", "NG-"], ["ref", "like", "GT-"]]
+
+    def find(domain):
+        return client._kw("account.move", "search", [arms + domain])
+
+    def button(method, ids):
+        try:
+            client._kw("account.move", method, [ids])
+        except xmlrpc_client.Fault as exc:
+            if "cannot marshal None" not in str(exc):
+                raise  # a real failure, not the None-return quirk
+
+    live = find([["state", "!=", "cancel"]])
+    if not live:
         print("nothing to clean up.")
         return
-    client._kw("account.move", "button_draft", [ids])
-    client._kw("account.move", "button_cancel", [ids])
-    print(f"cancelled {len(ids)} gate-off moves.")
+
+    posted = find([["state", "=", "posted"]])
+    if posted:
+        button("button_draft", posted)
+    draft = find([["state", "!=", "cancel"]])  # the posted ones are now draft too
+    if draft:
+        button("button_cancel", draft)
+
+    left = find([["state", "!=", "cancel"]])
+    print(f"cancelled {len(live) - len(left)} counterfactual moves "
+          f"({len(posted)} were posted). The real LP-* writes are untouched.")
+    if left:
+        print(f"  WARNING: {len(left)} could not be cancelled.")
 
 
 def main() -> None:
@@ -116,12 +181,12 @@ def main() -> None:
         correct = _entry_matches(entry, t)
 
         # --- ARM A: no gate. Whatever the model said goes straight in. ---
-        a_entry = rekey(entry, "NG", t.name)
+        a_entry = entry.model_copy(update={"ref": arm_a_ref(correct, t.name)})
         try:
             client.create_move({
                 "ref": a_entry.ref,
                 "date": a_entry.entry_date.isoformat(),
-                "narration": f"GATE OFF: {a_entry.memo}",
+                "narration": arm_a_narration(correct, a_entry, t),
                 "line_ids": [
                     (0, 0, {"account_code": ln.account_code,
                             "name": ln.description or a_entry.memo,
@@ -176,8 +241,17 @@ def main() -> None:
     print(f"  Without the gate: {a_wrong} wrong entries. With it: {b_wrong}.")
     print("  The model did not get better. The ledger did.")
     print("=" * 78)
-    print("\n  (open Odoo and filter ref starting 'NG-' to see the damage;")
-    print("   run with --cleanup to cancel them)")
+    print()
+    print("  In Odoo (Accounting > Journal Entries), filter Reference on:")
+    print(f"    NG-WRONG   ->  the {a_wrong} wrong entries the gate refused, posted anyway")
+    print("                    (open one: the narration says what it booked and what the")
+    print("                     source document actually required)")
+    print(f"    NG-ok      ->  the {a_posted - a_wrong} gate-off entries that happened to be right")
+    print(f"    GT-        ->  the {b_posted} entries the gate approved and wrote")
+    print()
+    print("  Re-running can report a different count (model sampling varies) while the")
+    print("  ledger keeps these moves, so screenshot before you re-run.")
+    print("  Cancel them all with:  python scripts/counterfactual.py --cleanup")
 
 
 if __name__ == "__main__":
