@@ -53,28 +53,30 @@
   @media (max-width:840px){.lede{grid-template-columns:1fr;gap:22px}}
   .thesis{margin:0;font:400 20px/1.5 var(--disp);color:var(--ink);max-width:32ch;text-wrap:pretty}
   .thesis b{color:var(--brass);font-weight:600}
-  .cf{display:grid;grid-template-columns:auto auto auto;align-items:center;gap:18px;
-    background:linear-gradient(180deg,var(--raised),var(--panel));border:1px solid var(--line-2);
-    border-radius:16px;padding:20px 24px;position:relative}
-  .cf::after{content:"same model · same 39 close tasks · same live ledger";position:absolute;left:24px;bottom:9px;
-    font:500 10px/1 var(--mono);letter-spacing:.4px;color:var(--dim)}
-  .cf-arm{display:flex;flex-direction:column;gap:2px;padding-bottom:16px}
-  .cf-k{font:500 11px/1 var(--mono);letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
-  .cf-v{font:600 52px/1 var(--disp);letter-spacing:-1px}
-  .cf-u{font:400 11.5px/1.3 var(--sans);color:var(--mut);max-width:11ch}
-  .cf-arm.off .cf-v{color:var(--fail)} .cf-arm.on .cf-v{color:var(--pass)}
-  .cf-arrow{font:400 30px/1 var(--disp);color:var(--dim);padding-bottom:16px}
+  /* The counterfactual is set as a ledger footing: a ruled column of figures with a
+     total, the way a schedule is actually presented. Not a stat card. */
+  .cf{position:relative;padding:2px 0 0}
+  .cf-h{font:600 10px/1 var(--mono);letter-spacing:1.8px;text-transform:uppercase;color:var(--dim);
+    border-bottom:1.5px solid var(--line-2);padding-bottom:8px}
+  .cf-row{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:16px;
+    padding:13px 0;border-bottom:1px solid var(--line)}
+  .cf-k{font:500 12.5px/1.3 var(--mono);letter-spacing:.3px;color:var(--mut)}
+  .cf-k span{display:block;font:400 11px/1.4 var(--sans);color:var(--dim);margin-top:3px;max-width:30ch}
+  .cf-v{font:600 40px/.9 var(--disp);letter-spacing:-1px;font-variant-numeric:tabular-nums}
+  .cf-row.off .cf-v{color:var(--fail)} .cf-row.on .cf-v{color:var(--pass)}
+  .cf-row.on{border-bottom:2.5px double var(--line-2)}  /* the double rule of a total */
+  .cf-f{font:400 10.5px/1.5 var(--mono);color:var(--dim);padding-top:9px;letter-spacing:.2px}
 
-  /* scenario picker — case files */
-  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:30px 0 18px}
-  .tab{cursor:pointer;font:500 13px/1 var(--sans);color:var(--mut);background:transparent;
-    border:1px solid var(--line-2);padding:11px 15px;border-radius:9px;transition:.18s ease;
-    display:flex;align-items:center;gap:8px}
-  .tab::before{content:"";width:6px;height:6px;border-radius:1px;background:var(--dim);transition:.18s}
-  .tab:hover{color:var(--ink);border-color:var(--dim)}
-  .tab:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
-  .tab.active{color:var(--paper-ink);background:var(--brass);border-color:var(--brass);font-weight:600}
-  .tab.active::before{background:var(--paper-ink)}
+  /* Scenario picker: file tabs on a folder, not pills. Square, butted together,
+     sitting on the rule that the document hangs from. */
+  .tabs{display:flex;gap:2px;flex-wrap:wrap;margin:32px 0 0;border-bottom:1.5px solid var(--line-2);
+    padding-left:2px}
+  .tab{cursor:pointer;font:500 12.5px/1 var(--mono);color:var(--mut);background:transparent;
+    border:none;border-bottom:2px solid transparent;padding:12px 15px;transition:color .16s,border-color .16s;
+    letter-spacing:.2px;margin-bottom:-1.5px}
+  .tab:hover{color:var(--ink)}
+  .tab:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
+  .tab.active{color:var(--brass);border-bottom-color:var(--brass);font-weight:600}
 
   /* stage: document -> seam -> gate */
   .stage{display:grid;grid-template-columns:minmax(0,1fr) 52px minmax(0,1.02fr);align-items:stretch}
@@ -86,7 +88,7 @@
     box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 18px 40px -18px rgba(0,0,0,.7),0 2px 8px rgba(0,0,0,.3)}
   .paper::before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:4px;background:var(--brass)}
   /* ruled continuation of the ledger page, kept below the entry so it never crosses text */
-  .fill{flex:1 1 auto;min-height:40px;margin-top:12px;
+  .fill{flex:1 1 auto;min-height:44px;margin-top:12px;
     background-image:repeating-linear-gradient(transparent 0 27px,var(--paper-rule) 27px 28px)}
   .vhead{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1.5px solid rgba(33,31,25,.22);padding-bottom:9px;margin-bottom:2px}
   .vhead .lbl{font:600 10.5px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--paper-mut)}
@@ -120,29 +122,36 @@
   .pulse.run{animation:flow 1.15s cubic-bezier(.4,0,.5,1)}
   @keyframes flow{0%{top:4%;opacity:0}15%{opacity:1}85%{opacity:1}100%{top:96%;opacity:0}}
 
-  /* the gate machine */
-  .gate{background:linear-gradient(180deg,var(--raised),var(--panel));border:1px solid var(--line-2);
-    border-radius:12px;padding:20px 22px;display:flex;flex-direction:column}
-  .ghead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
-  .ghead .t{font:600 11px/1 var(--mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--brass)}
-  .ghead .s{font:400 11px/1 var(--mono);color:var(--dim)}
+  /* The reviewer's column. Not a card: an auditor does not hand you a widget, they
+     hand back your document with tick marks down the margin and a note on the one
+     line that is wrong. Rules and type, no boxes. */
+  .gate{padding:4px 2px 0 12px;display:flex;flex-direction:column}
+  .ghead{display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:1.5px solid var(--line-2);padding-bottom:9px;margin-bottom:2px}
+  .ghead .t{font:600 10.5px/1 var(--mono);letter-spacing:1.8px;text-transform:uppercase;color:var(--brass)}
+  .ghead .s{font:400 10.5px/1 var(--mono);color:var(--dim);letter-spacing:.3px}
   .checks{display:flex;flex-direction:column}
-  .check{display:flex;gap:12px;align-items:flex-start;padding:9px 8px;margin:0 -8px;border-radius:8px;
-    border-bottom:1px solid var(--line);opacity:0;transform:translateX(-6px);
-    transition:opacity .34s ease,transform .34s ease,background .3s}
-  .check.show{opacity:1;transform:none}
-  .check.fail{background:var(--fail-bg)}
-  .led{flex:0 0 20px;width:20px;height:20px;border-radius:6px;display:grid;place-items:center;
-    font:800 11px/1 var(--sans);margin-top:1px;color:#0e1113;position:relative}
-  .led.ok{background:var(--pass)} .led.bad{background:var(--fail);color:#fff} .led.warn{background:var(--hold)}
-  .check.fail .led{box-shadow:0 0 0 0 rgba(217,84,104,.6);animation:ping 1.6s ease-out 2}
-  @keyframes ping{0%{box-shadow:0 0 0 0 rgba(217,84,104,.55)}70%{box-shadow:0 0 0 8px rgba(217,84,104,0)}100%{box-shadow:0 0 0 0 rgba(217,84,104,0)}}
-  .cn{font:500 13.5px/1.25 var(--sans);color:var(--ink)}
-  .cd{font:400 12px/1.4 var(--mono);color:var(--mut);margin-top:2px;letter-spacing:-.1px}
-  .check.fail .cd{color:#e78a97}
+  /* the tick column is a fixed measure, so every tick lines up like a ruled margin */
+  .check{display:grid;grid-template-columns:18px 1fr;gap:13px;align-items:baseline;
+    padding:10px 0 9px;border-bottom:1px solid var(--line);opacity:0;
+    transition:opacity .34s ease}
+  .check.show{opacity:1}
+  .tick{font:700 14px/1.2 var(--mono);color:var(--pass);text-align:center}
+  .tick.bad{color:var(--fail)} .tick.warn{color:var(--hold)}
+  .check.fail{border-bottom-color:var(--fail-dim)}
+  .cn{font:500 13px/1.3 var(--sans);color:var(--ink)}
+  .check.fail .cn{color:var(--fail)}
+  .check.held .cn{color:var(--hold)}
+  .cd{font:400 11.5px/1.5 var(--mono);color:var(--mut);margin-top:3px;letter-spacing:-.1px}
+  /* the exception is written in red pen, hanging in the margin like a review note */
+  .check.fail .cd{color:#e88a95;border-left:2px solid var(--fail);padding-left:9px;margin-left:-11px}
+  .check.held .cd{color:#dcb26a;border-left-color:var(--hold)}
+  .legend{font:400 10.5px/1.5 var(--mono);color:var(--dim);margin-top:11px;letter-spacing:.2px}
+  .legend b{color:var(--pass);font-weight:700} .legend i{color:var(--fail);font-style:normal;font-weight:700}
+  .legend u{color:var(--hold);text-decoration:none;font-weight:700}
 
   /* the verdict stamp */
-  .verdict{margin-top:auto;padding-top:20px;min-height:96px;display:flex;align-items:center;gap:18px}
+  .verdict{margin-top:20px;padding-top:2px;display:flex;align-items:center;gap:18px}
   .stamp{flex:0 0 auto;border:2.5px solid currentColor;border-radius:10px;padding:9px 16px;
     font:700 22px/1 var(--disp);letter-spacing:1px;text-transform:uppercase;position:relative;
     opacity:0;transform:rotate(-16deg) scale(1.7)}
@@ -158,6 +167,7 @@
   .wb.show{opacity:1} .wb b{color:var(--ink);font-weight:600}
 
   /* human-in-the-loop checkpoint */
+  .hitl[hidden]{display:none}
   .hitl{margin-top:15px;padding-top:15px;border-top:1px dashed var(--line);
     display:flex;align-items:center;gap:14px;flex-wrap:wrap;opacity:0;transform:translateY(4px);
     transition:opacity .4s ease,transform .4s ease}
@@ -171,14 +181,17 @@
   .approve:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
   .approve svg{width:15px;height:15px;stroke:#161207;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 
-  /* proof band */
-  .proof{margin-top:26px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
+  /* Proof band: a summary schedule ruled off at the foot of the page. */
+  .proof{margin-top:34px;border-top:1.5px solid var(--line-2);display:grid;
+    grid-template-columns:1.15fr 1fr 1fr 1.1fr}
   @media (max-width:840px){.proof{grid-template-columns:1fr 1fr}}
-  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 17px}
-  .stat.feat{border-color:var(--brass-dim);background:linear-gradient(180deg,rgba(201,162,75,.06),var(--panel))}
-  .stat .n{font:600 27px/1 var(--disp);letter-spacing:-.5px}
+  .stat{padding:19px 22px 2px;border-right:1px solid var(--line)}
+  .stat:first-child{padding-left:0}
+  .stat:last-child{border-right:none}
+  @media (max-width:840px){.stat{padding-left:0;border-right:none}}
+  .stat .n{font:600 30px/1 var(--disp);letter-spacing:-.5px;font-variant-numeric:tabular-nums}
   .stat.feat .n{color:var(--pass)}
-  .stat .l{font:400 11.5px/1.4 var(--sans);color:var(--mut);margin-top:6px}
+  .stat .l{font:400 11px/1.5 var(--sans);color:var(--mut);margin-top:8px;max-width:26ch}
   .repro{margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
     font:400 12px/1.5 var(--sans);color:var(--dim);border-top:1px solid var(--line);padding-top:16px}
   .repro code{font:500 12px/1 var(--mono);color:var(--brass);background:rgba(201,162,75,.08);
@@ -210,9 +223,16 @@
   <section class="lede">
     <p class="thesis">Qwen drafts the journal entries. A deterministic gate of eight exact checks decides what reaches the ledger. <b>Same model, same 39 close tasks, same live ERP:</b></p>
     <div class="cf" role="img" aria-label="Gate off: 5 wrong entries posted. Gate on: 0 wrong entries.">
-      <div class="cf-arm off"><span class="cf-k">gate off</span><span class="cf-v">5</span><span class="cf-u">wrong entries posted to the ledger</span></div>
-      <div class="cf-arrow">→</div>
-      <div class="cf-arm on"><span class="cf-k">gate on</span><span class="cf-v">0</span><span class="cf-u">wrong entries</span></div>
+      <div class="cf-h">Wrong entries reaching the ledger</div>
+      <div class="cf-row off">
+        <div class="cf-k">Gate off<span>every proposal posted as drafted</span></div>
+        <div class="cf-v">5</div>
+      </div>
+      <div class="cf-row on">
+        <div class="cf-k">Gate on<span>same model, same 39 tasks, same ledger</span></div>
+        <div class="cf-v">0</div>
+      </div>
+      <div class="cf-f">measured on a live Odoo · docs/counterfactual_proof.txt</div>
     </div>
   </section>
 
@@ -240,6 +260,7 @@
     <section class="gate" aria-label="deterministic gate">
       <div class="ghead"><span class="t">Deterministic gate</span><span class="s">8 checks · no LLM</span></div>
       <div class="checks" id="checks"></div>
+      <div class="legend"><b>✓</b> passed &nbsp; <i>✗</i> exception, refused &nbsp; <u>△</u> held for a human</div>
       <div class="verdict">
         <div class="stamp" id="stamp"></div>
         <div class="wb" id="wb"></div>
@@ -302,12 +323,13 @@ function runGate(s, st, canApprove){
   hitl.hidden=true; hitl.classList.remove('show');
 
   const step=reduce?0:105, base=reduce?0:260;
+  // A reviewer's tick down the margin: pass, exception, or held for a human.
   st.checks.forEach((c,i)=>{
     const row=document.createElement('div'); row.className='check';
-    const cls=c.passed?'ok':(c.severity==='warning'?'warn':'bad');
-    const mark=c.passed?'✓':(c.severity==='warning'?'‖':'✕');
-    if(!c.passed) row.classList.add('fail');
-    row.innerHTML=`<div class="led ${cls}">${mark}</div><div><div class="cn">${nice[c.check]||c.check}</div>
+    const cls=c.passed?'':(c.severity==='warning'?'warn':'bad');
+    const mark=c.passed?'✓':(c.severity==='warning'?'△':'✗');
+    if(!c.passed) row.classList.add(c.severity==='warning' ? 'fail held' : 'fail');
+    row.innerHTML=`<div class="tick ${cls}">${mark}</div><div><div class="cn">${nice[c.check]||c.check}</div>
       <div class="cd">${c.detail}</div></div>`;
     checks.appendChild(row);
     timers.push(setTimeout(()=>row.classList.add('show'), base+step*i));
