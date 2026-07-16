@@ -1,0 +1,74 @@
+================================================================================
+ LedgerPilot: a scanned invoice image -> a governed posting decision
+ Generated ON Alibaba Cloud ECS. qwen3-vl-plus reads the pixels; nothing about
+ the invoice is hard-coded in the script.
+================================================================================
+generated (UTC) : 2026-07-16 15:34:38
+instance-id     : i-t4n1i5p7bz4ypj122e6q
+region-id       : ap-southeast-1
+image           : samples/invoice_rent_june_2026.png
+
+
+==============================================================================
+STEP 1  qwen3-vl-plus reads the scanned invoice (nothing is hard-coded)
+==============================================================================
+  image        : invoice_rent_june_2026.png (1027 KB)
+  vision model : qwen3-vl-plus  (Alibaba Cloud Model Studio)
+
+  doc_type     : invoice
+  document_id  : INV-RENT-06
+  counterparty : Northwind Properties LLC
+  date         : 2026-06-20
+  net / tax    : 4500.00 / 0.00 USD
+  gross_amount : 4500.00
+    line       : Office rent — Suite 400, 120 King Street West = 4500.00
+
+  planner task derived from the image:
+    invoice INV-RENT-06 from Northwind Properties LLC dated 2026-06-20: net 4500.00 USD, tax 0.00, gross 4500.00. Items: Office rent — Suite 400, 120 King Street West 4500.00.
+
+==============================================================================
+STEP 2  The planner drafts an entry from what the vision model read
+==============================================================================
+  proposed: VL-INV-RENT-06  amount=4500.00
+    6100  Dr 4500.00       Rent expense
+    1000  Cr 4500.00       Cash and cash equivalents
+
+    [ok ] balance              Debits equal credits.
+    [ok ] account_validity     All accounts exist and are postable.
+    [ok ] no_self_contra       No account appears on both sides.
+    [ok ] positive_amounts     All lines carry a positive debit or credit.
+    [ok ] period_lock          Period 2026-06 is open.
+    [ok ] segregation          Approved by authorized 'controller', distinct from preparer.
+    [ok ] approval_threshold   Amount 4500.00 within autonomous limit 10000.
+    [ok ] reconciliation       Entry reconciles to document INV-RENT-06.
+  --> GATE DECISION: APPROVED
+
+==============================================================================
+STEP 3  Same invoice, planner nudged to the WRONG account -> refused
+==============================================================================
+  A trial balance passes this: it balances and every account is real.
+  Only reconciliation against the document Qwen-VL just read catches it.
+
+  proposed: VL-INV-RENT-06-BAD  amount=4500.00
+    6900  Dr 4500.00       Office rent — Suite 400, 120 King Street West
+    1000  Cr 4500.00       Payment from bank account for INV-RENT-06
+
+    [ok ] balance              Debits equal credits.
+    [ok ] account_validity     All accounts exist and are postable.
+    [ok ] no_self_contra       No account appears on both sides.
+    [ok ] positive_amounts     All lines carry a positive debit or credit.
+    [ok ] period_lock          Period 2026-06 is open.
+    [ok ] segregation          Approved by authorized 'controller', distinct from preparer.
+    [ok ] approval_threshold   Amount 4500.00 within autonomous limit 10000.
+    [XX ] reconciliation       Does not reconcile to INV-RENT-06: debit accounts ['6900'] not permitted for invoice (allowed ['6100']).
+  --> GATE DECISION: REJECTED
+
+==============================================================================
+RESULT
+==============================================================================
+  The amount the gate reconciled against (4500.00) was never
+  typed by a human. Qwen-VL read it off the invoice image.
+    correct posting -> approved
+    wrong posting   -> rejected
+
+  Pixels in, governed decision out. The vision layer feeds the same gate.

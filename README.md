@@ -73,6 +73,13 @@ Re-running either returns the same entry instead of double-posting (dedupe on th
 
 Putting the gate behind the tool is what lets the model be given write access without being given the ability to write something wrong. "The model drove the write and still could not corrupt the ledger" is the claim; the demo is the evidence.
 
+**6. A scanned invoice becomes a governed posting decision.** [scripts/ingest_demo.py](scripts/ingest_demo.py) takes a PNG of a scanned invoice ([samples/invoice_rent_june_2026.png](samples/invoice_rent_june_2026.png)), and `qwen3-vl-plus` reads it on Model Studio: document id, date, vendor, net/tax/gross, line items. Nothing about the invoice is hard-coded. What the vision model read then drives the planner, and the gate reconciles the resulting entry **against the document it just read**:
+
+- Booked correctly to Rent expense → **approved**.
+- The same invoice nudged to Bank fees → balances, real accounts, passes a trial balance → **refused by reconciliation**.
+
+The amount the gate reconciled against (4,500.00) was never typed by a human. Transcript: [docs/vision_ingest_proof.txt](docs/vision_ingest_proof.txt), generated on ECS.
+
 ---
 
 ## The problem
@@ -114,7 +121,7 @@ ledgerpilot/
   models.py            # JournalEntry / JournalLine / Proposal / GateResult
   chart_of_accounts.py # sample chart of accounts + period state
   planner.py           # Qwen/DashScope generative planner (propose entries, function calling)
-  ingest.py            # Qwen-VL document ingestion (implemented; not in the measured path)
+  ingest.py            # Qwen-VL document ingestion (scanned image -> structured record)
   gate.py              # THE deterministic validation gate (scored core, 8 checks)
   tokens.py            # HMAC-signed approval tokens
   writeback.py         # governed write-back (gate re-check -> token -> idempotent commit)
@@ -132,6 +139,7 @@ scripts/
   real_odoo_write.py   # one real governed write to a live Odoo
   counterfactual.py    # gate off vs gate on, posted to a live ledger
   mcp_demo.py          # Qwen drives the ERP write through MCP, and cannot write anything wrong
+  ingest_demo.py       # a scanned invoice image -> Qwen-VL -> planner -> gate
 webui.py               # builds web/index.html: a visual frontend over the real gate
 tests/                 # 76 tests: gate, reconciliation, tokens, pipeline, clients, MCP, config, live eval
 docs/
@@ -207,7 +215,7 @@ python -m eval.harness --live                    # measured false-write rate + W
 - **The live measurement varies between runs.** Raw transcripts for both models are committed ([docs/ecs_proof.txt](docs/ecs_proof.txt), run on Alibaba Cloud ECS, and [docs/live_run.txt](docs/live_run.txt), run locally) so the headline numbers are verifiable rather than asserted. Model accuracy moves a few points run to run because sampling is not perfectly reproducible even at temperature 0; the gate's behaviour did not move, catching every mistake in every run.
 - **Two confidence-bound methods.** The offline bound uses Rule of Three (3/36 = 8.33%); the live bound uses the Wilson score interval. Both are disclosed inline where they appear; they differ because a bare "0%" deserves an explicit bound and Wilson is the more standard choice for the live proportion.
 - **Idempotency is sequential-retry safe, not concurrency safe.** The client searches for the entry's content hash (and its business ref) before creating the move, so a re-run does not double-post. Two agents writing the same entry at the same instant could still race; production would use a unique constraint on the hash in the ERP.
-- **Ingestion is implemented but not in the measured path.** `ledgerpilot/ingest.py` uses `qwen3-vl-plus` to read scanned documents, but every measured result in this README starts from a natural-language task or a structured source document, not an image. The vision path is not exercised in the committed transcripts.
+- **The measured false-write rates start from text, not images.** The vision path is real and exercised ([docs/vision_ingest_proof.txt](docs/vision_ingest_proof.txt)), but the 204-case and 39-task numbers above are measured from natural-language tasks and structured source documents, so they measure the planner and the gate rather than OCR accuracy. A production claim would need the false-write rate measured from scanned documents end to end.
 - **Rollback and a persisted audit log / review queue are not implemented.** A posted move can be reversed manually in Odoo today; rejected entries are refused with the failing check as the reason, but that record is not yet persisted to a queue. Both are designed into the topology (see ARCHITECTURE.md) and marked Planned.
 - **`float()` at the Odoo boundary.** Money is `Decimal` everywhere internally (the models refuse to construct money from a float), but Odoo's XML-RPC monetary fields require float, so the value is converted at the very last step in `writeback.py`. This is the one deliberate exception to the no-float rule, and it is confined to the transport layer.
 - **Production key management.** The HMAC signing key defaults to a development placeholder for the offline gate, demo and tests. `load_config()` **refuses to run against a live Odoo** with that default, so a real deployment must supply `LEDGERPILOT_SIGNING_KEY` (from a secret manager such as Alibaba Cloud KMS). The MCP server binds a network-facing write endpoint, so this check is what stands between it and an unauthenticated writer.

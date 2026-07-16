@@ -31,7 +31,17 @@ receipts) and extract a normalized record. Return ONLY JSON:
  "tax_amount": "0.00",
  "gross_amount": "0.00",
  "line_items": [{"description": str, "amount": "0.00"}]}
-Amounts are strings with two decimals. Do not guess values that are not present."""
+
+counterparty is the OTHER party to the document, never the reader. On a supplier
+invoice that is the issuing vendor (the letterhead), NOT the company it is billed
+to. Getting this backwards silently misattributes the transaction, so if both a
+letterhead and a "bill to" appear, take the letterhead.
+
+document_id is the document's own reference (invoice number), not an account,
+order or lease number.
+
+Amounts are strings with two decimals. Do not guess values that are not present:
+if a field is absent, return an empty string rather than inventing one."""
 
 
 @dataclass

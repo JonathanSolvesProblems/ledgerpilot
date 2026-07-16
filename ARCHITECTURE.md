@@ -51,7 +51,7 @@ Two boundaries matter here. The **trust boundary** is horizontal: Qwen proposes,
 ### 1. Ingestion (generative): `ingest.py`
 - Reads scanned invoices / bank statements with **qwen3-vl-plus** (multimodal).
 - Extracts and normalizes line items, dates, counterparties, amounts.
-- Implemented but not exercised in the measured runs: every committed metric starts from a natural-language task or a structured source document, not an image.
+- Exercised end to end in `scripts/ingest_demo.py` (transcript: `docs/vision_ingest_proof.txt`): a scanned invoice PNG becomes a structured record, which drives the planner, and the gate reconciles the entry against the document the vision model just read. The committed false-write metrics still start from text, so they measure the planner and the gate rather than OCR accuracy.
 
 ### 2. Planner (generative): `planner.py`
 - Uses **qwen3.7-max** with **function calling** to draft candidate journal entries.
