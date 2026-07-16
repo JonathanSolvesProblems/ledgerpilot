@@ -214,10 +214,10 @@ HTML = r"""<!doctype html>
   .wp-f b{display:block;font:500 11.5px/1.4 var(--mono);color:var(--ink);margin-top:4px;letter-spacing:0}
   .wp-f b .live{color:var(--ok)}
 
-  .lede{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:start;margin:24px 0 4px}
+  .lede{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:start;margin:34px 0 10px}
   @media (max-width:860px){.lede{grid-template-columns:1fr;gap:20px}}
-  .thesis{margin:0;font:500 17px/1.55 var(--mono);color:var(--ink);max-width:40ch;letter-spacing:-.5px}
-  .thesis b{color:var(--pen);font-weight:700}
+  .thesis{margin:0;font:500 16px/1.65 var(--mono);color:var(--ink-2);max-width:38ch;letter-spacing:-.4px}
+  .thesis b{color:var(--ink);font-weight:700}
 
   /* the counterfactual, banded like the report it came off */
   .cf-h{font:600 9px/1 var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);
@@ -232,7 +232,7 @@ HTML = r"""<!doctype html>
   .cf-row.on{border-bottom:3px double var(--rule-2)}
   .cf-f{font:400 9.5px/1.5 var(--mono);color:var(--faint);padding-top:8px}
 
-  .tabs{display:flex;gap:0;flex-wrap:wrap;margin:24px 0 0;border-bottom:1.5px solid var(--ink);padding-left:2px}
+  .tabs{display:flex;gap:0;flex-wrap:wrap;margin:40px 0 0;border-bottom:1.5px solid var(--ink);padding-left:2px}
   .tab{cursor:pointer;font:500 12px/1 var(--mono);color:var(--ink-2);background:transparent;
     border:none;border-bottom:3px solid transparent;padding:11px 15px;margin-bottom:-1.5px;
     transition:color .14s,border-color .14s;letter-spacing:-.2px}
@@ -268,7 +268,7 @@ HTML = r"""<!doctype html>
   .vfoot{display:flex;gap:22px;margin-top:10px;padding-top:9px;border-top:1px solid var(--rule)}
   .vfoot div{font:400 8.5px/1.4 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--faint)}
   .vfoot b{display:block;font:500 11.5px/1.3 var(--mono);color:var(--ink);margin-top:3px;letter-spacing:0;text-transform:none}
-  .fill{flex:1 1 auto;min-height:40px;margin:9px -20px -16px;
+  .fill{flex:1 1 auto;min-height:26px;margin:9px -20px -16px;
     background-image:repeating-linear-gradient(180deg,transparent 0 25px,var(--band) 25px 50px)}
 
   .seam{position:relative;display:flex;align-items:center;justify-content:center}
@@ -288,21 +288,24 @@ HTML = r"""<!doctype html>
   .ghead .t{font:700 9px/1 var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink)}
   .ghead .s{font:400 9.5px/1 var(--mono);color:var(--faint)}
   .check{display:grid;grid-template-columns:18px 1fr;gap:12px;align-items:baseline;
-    padding:9px 10px 8px;margin:0 -10px;opacity:0;transition:opacity .18s linear}
+    padding:7px 10px;margin:0 -10px;opacity:0;transition:opacity .18s linear}
+  /* the exception gets room; the marks that agreed do not */
+  .check.fail{padding:11px 10px}
   .check:nth-child(odd){background:var(--band)}
   .check.show{opacity:1}
   .tick{font:700 13px/1.2 var(--mono);color:var(--ok);text-align:center}
   .tick.bad{color:var(--pen)} .tick.warn{color:var(--hold)}
   .check.fail{background:rgba(179,38,30,.10)}
   .check.fail.held{background:rgba(138,90,6,.12)}
-  .cn{font:600 12px/1.3 var(--mono);color:var(--ink);letter-spacing:-.2px}
-  .check.fail .cn{color:var(--pen)}
-  .check.held .cn{color:var(--hold)}
+  .cn{font:500 12px/1.3 var(--mono);color:var(--ink-2);letter-spacing:-.2px}
+  .check.fail .cn{color:var(--pen);font-weight:700}
+  .check.held .cn{color:var(--hold);font-weight:700}
   .cd{font:400 10.5px/1.5 var(--mono);color:var(--ink-2);margin-top:3px}
   .check.fail .cd{color:var(--pen)}
   .check.held .cd{color:var(--hold)}
-  .legend{font:400 9.5px/1.7 var(--mono);color:var(--faint);margin-top:9px;
+  .legend{font:400 9px/1.6 var(--mono);color:var(--faint);margin-top:12px;
     border-top:1px solid var(--rule);padding-top:8px}
+  .legend span{white-space:nowrap;margin-right:14px}
   .legend em{font-style:normal;font-weight:700;color:var(--ok)}
   .legend i{font-style:normal;font-weight:700;color:var(--pen)}
 
@@ -333,7 +336,7 @@ HTML = r"""<!doctype html>
   .approve svg{width:13px;height:13px;stroke:var(--stock);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 
   /* the totals line the report foots to */
-  .proof{margin-top:28px;border-top:2px solid var(--ink);display:grid;
+  .proof{margin-top:44px;border-top:2px solid var(--ink);display:grid;
     grid-template-columns:1.15fr 1fr 1fr 1.1fr}
   @media (max-width:860px){.proof{grid-template-columns:1fr 1fr}}
   .stat{padding:15px 18px 2px;border-right:1px solid var(--rule)}
@@ -422,13 +425,7 @@ HTML = r"""<!doctype html>
     <section class="gate" aria-label="deterministic gate">
       <div class="ghead"><span class="t">Deterministic gate</span><span class="s">8 checks · no LLM</span></div>
       <div class="checks" id="checks"></div>
-      <div class="legend">
-        Tick legend &nbsp;
-        <em>F</em> footed &nbsp; <em>A</em> agreed to the chart of accounts &nbsp; <em>X</em> tested &nbsp;
-        <em>C</em> cut-off, period open &nbsp; <em>S</em> segregation confirmed &nbsp;
-        <em>L</em> within delegated limit &nbsp; <em>T</em> traced to source document &nbsp;
-        <i>&Delta;</i> variance &mdash; exception, or held for a human
-      </div>
+      <div class="legend" id="legend"></div>
       <div class="verdict">
         <div class="stamp" id="stamp"></div>
         <div class="wb" id="wb"></div>
@@ -464,6 +461,8 @@ const nice={balance:'Balance',account_validity:'Account validity',no_self_contra
 // own. An exception is marked with a delta: a variance requiring investigation.
 const TICK={balance:'F',account_validity:'A',no_self_contra:'X',positive_amounts:'X',
   period_lock:'C',segregation:'S',approval_threshold:'L',reconciliation:'T'};
+const MEANS={F:'footed',A:'agreed to the chart of accounts',X:'tested',C:'cut-off, period open',
+  S:'segregation confirmed',L:'within delegated limit',T:'traced to source document'};
 const stampWord={approved:['APPROVED','written to the ledger'],rejected:['REFUSED','nothing written'],
   needs_human:['HOLD','escalated to a human']};
 const PEN='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2 2 0 0 0-3-3L5 17v3z"/><path d="M14 7l3 3"/></svg>';
@@ -503,11 +502,18 @@ function runGate(s, st, canApprove){
     const cls=c.passed?'':(c.severity==='warning'?'warn':'bad');
     const mark=c.passed?(TICK[c.check]||'X'):'\u0394';
     if(!c.passed){ row.classList.add('fail'); if(c.severity==='warning') row.classList.add('held'); }
-    row.innerHTML=`<div class="tick ${cls}">${mark}</div><div><div class="cn">${nice[c.check]||c.check}</div>
-      <div class="cd">${c.detail}</div></div>`;
+    // Only an exception is written up. A tick that agreed says everything by being there.
+    const note = c.passed ? '' : `<div class="cd">${c.detail}</div>`;
+    row.innerHTML=`<div class="tick ${cls}">${mark}</div><div><div class="cn">${nice[c.check]||c.check}</div>${note}</div>`;
     checks.appendChild(row);
     timers.push(setTimeout(()=>row.classList.add('show'), base+step*i));
   });
+  const used=[...new Set(st.checks.filter(c=>c.passed).map(c=>TICK[c.check]||'X'))];
+  const any=st.checks.some(c=>!c.passed);
+  $('legend').innerHTML='Ticks &nbsp; '
+    + used.map(t=>`<em>${t}</em> ${MEANS[t]}`).join(' &nbsp; ')
+    + (any?' &nbsp; <i>\u0394</i> variance':'');
+
   timers.push(setTimeout(()=>{
     const [w,sub]=stampWord[st.decision]||[st.decision,''];
     stamp.className='stamp show '+st.decision;
