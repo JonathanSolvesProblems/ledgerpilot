@@ -146,12 +146,17 @@ def ensure_security_group(ecs: EcsClient, region: str, vpc_id: str) -> str:
         region_id=region, vpc_id=vpc_id, security_group_name=SG_NAME,
         description="LedgerPilot agent: ssh + web UI"))
     sg_id = created.body.security_group_id
-    for port in ("22/22", "80/80", "8080/8080"):
+    #   22   ssh
+    #   80   the gate's web UI, and the ACME http-01 challenge Caddy answers to
+    #        obtain the certificate
+    #  443   the same UI over TLS once a hostname points here
+    # 8080   the MCP server Model Studio connects out to
+    for port in ("22/22", "80/80", "443/443", "8080/8080"):
         ecs.authorize_security_group(ecs_models.AuthorizeSecurityGroupRequest(
             region_id=region, security_group_id=sg_id, ip_protocol="tcp",
             port_range=port, source_cidr_ip="0.0.0.0/0",
             description=f"LedgerPilot {port}"))
-    print(f"  security group      {sg_id} (created, tcp 22/80/8080)")
+    print(f"  security group      {sg_id} (created, tcp 22/80/443/8080)")
     return sg_id
 
 
