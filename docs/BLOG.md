@@ -1,53 +1,123 @@
-# Why I refused to let an LLM write to the ledger
+# I let an AI post to a real general ledger, twice
 
-LedgerPilot is a month-end-close agent. It reads the messy pile a finance team drowns in every month (bank statements, supplier invoices) and proposes the journal entries that should be posted to the general ledger. The entire project is built around one decision I made on the first day and never walked back: the language model is allowed to *propose* an entry, and it is never allowed to *write* one.
+Same model. Same thirty-nine month-end close tasks. Same live Odoo instance. The only difference between the two runs was a few hundred lines of boring Python sitting between the model and the database.
 
-That sounds like a small architectural detail. It is actually the whole product.
+In the first run, five wrong journal entries landed in the ledger. Salaries paid out of accounts receivable. A cost-of-goods purchase booked as though it were a sale. Every one of them balances to the cent. Every one uses real, postable accounts. Every one passes a trial balance. They are still sitting there, and you can open them.
+
+In the second run, the same model made the same mistakes, and zero of them reached the ledger.
+
+The model did not get better. The ledger did.
+
+That is LedgerPilot, and this is what I learned building it.
 
 ## A wrong journal entry is not a bug you patch
 
-Most LLM demos treat a mistake as a retry. In accounting it is not. A single hallucinated or mis-posted journal entry landing in a system of record is an audit finding. It flows into a trial balance, into financial statements, and possibly into a restatement. Weak controls around manual journal entries are one of the classic enablers of both error and fraud, which is why frameworks like SOX 404 and COSO exist in the first place. An "AI accountant" that writes directly to the ledger is not a convenience. It is a liability with a chat interface.
+Most LLM demos treat a mistake as a retry. In accounting it is not. A single mis-posted journal entry landing in a system of record is an audit finding. It flows into a trial balance, into financial statements, and possibly into a restatement. Weak controls around manual journal entries are one of the classic enablers of both error and fraud, which is why SOX 404 and COSO exist. An "AI accountant" that writes directly to the ledger is not a convenience. It is a liability with a chat interface.
 
-So I drew a hard line and called it the gate. Reading and drafting are messy, ambiguous, reasoning-heavy work, and that is exactly what a generative model is good at. Deciding whether something is allowed to touch the ledger is exact, auditable, reproducible work, and that belongs in deterministic code. The gate is the trust boundary between those two worlds.
+And the models are not good enough to skip the question. On a real accounting-workflow benchmark the best model still gets roughly one task in six wrong. You cannot ship that straight into a general ledger and call the remainder a rounding error.
+
+So I drew a hard line and called it the gate. Reading and drafting are messy, ambiguous, reasoning-heavy work, which is exactly what a generative model is good at. Deciding whether something may touch the ledger is exact, auditable, reproducible work, which belongs in deterministic code. The gate is the boundary between those two worlds, and it is the only door.
 
 ## The gate has no model in it, on purpose
 
-The gate is a plain Python rules engine with no LLM call, no network I/O, and no randomness anywhere in it. Given the same entry and the same ledger state it returns the same verdict every time, so it is fully reproducible and I can put it under a debugger and a test suite. Money is `Decimal` only; a float amount is rejected rather than silently rounded. It runs eight checks: balance, account validity, no self-contra, positive amounts, period lock, segregation of duties (preparer cannot equal approver), an approval threshold that forces a human sign-off above a limit, and reconciliation to the source document. Each check maps to a named control, so "the gate approved this" translates directly into "these controls were satisfied."
+The gate is a plain Python rules engine. No LLM call, no network, no randomness, no clock. Given the same entry and the same ledger state it returns the same verdict every time, so I can put it under a debugger and a test suite. Money is `Decimal` only; a float amount is rejected rather than silently rounded.
 
-Nothing reaches the ledger unless every hard check passes. The model can propose anything it likes. The gate is the only door.
+It runs eight checks: balance, account validity, no account on both sides, positive amounts, period lock, segregation of duties, an approval threshold that forces a human sign-off above a limit, and reconciliation to the source document. Each maps to a named control, so "the gate approved this" translates into "these controls were satisfied."
 
-## The check I care about most: balanced but wrong
+It also fails closed. Any failing check other than the human-approval threshold rejects. That sounds obvious and it was not what I wrote first, which I will come back to.
 
-Double-entry balancing is necessary but not sufficient, and this is the part most people miss. An entry can tie to the cent and still be completely wrong. Transpose two digits and debits still equal credits. Post rent to the bank-charges account instead of the rent account and it still balances, because both are valid, postable accounts. A naive trial-balance check waves both through. These are exactly the confident, well-formed, wrong entries a generative planner produces.
+## The check that matters: balanced but wrong
 
-The reconciliation check is what catches them. When a proposal arrives with the source document that produced it, the gate compares the entry's total against the authoritative document total, and checks that the debit and credit accounts fall inside the posting policy for that document type. A transposed amount no longer matches the invoice. A valid-but-wrong account is no longer in the allowed set. In accounting terms these are errors of commission and errors of principle, and they are the ones a balance check can never see. Reconciling against independent evidence is the only deterministic way to catch a plausible lie.
+Double-entry balancing is necessary and nowhere near sufficient. This is the part most people miss.
 
-## Putting the LLM in the eval loop
+An entry can tie to the cent and be completely wrong. Transpose two digits and debits still equal credits. Post rent to bank charges instead of rent expense and it still balances, because both are real, postable accounts. A trial balance waves both through. These are precisely the confident, well-formed, wrong entries a generative planner produces.
 
-My first version tested the gate in isolation. That proves the rules are correct. It does not prove the system is safe once a real model is feeding it, because the interesting failures live in the handoff. So I stopped testing the gate alone and put a planner in front of it, then measured the pipeline end to end.
+The reconciliation check is what catches them. When a proposal arrives with the source document that produced it, the gate compares the entry's total against the document total, and checks that the debit and credit accounts fall inside the posting policy for that document type. A transposed amount no longer matches the invoice. A valid-but-wrong account is no longer in the permitted set.
 
-I run this two ways. The offline path uses an error-injection planner that builds the correct entry for a scenario and then introduces exactly one documented failure mode, so I can stress-test the gate across every error class at scale with no API key and no cost. The live path swaps in the real Qwen planner and measures what the actual model plus gate does, validating the model's output against a per-document posting policy that is independent of the answer, so a plausible-but-wrong posting can pass and the number is genuinely falsifiable. Both hand the gate the same source document the planner was given, so the reconciliation check runs against real evidence rather than a convenient copy. The offline corpus is twelve domain-credible scenarios (rent, payroll, revenue, cost of goods, prepaid, accruals, and so on) expanded across amounts and fourteen error classes into 204 cases. Building that corpus is the part that needed actual accounting knowledge, and it is the part that is hard to clone.
+In accounting these are errors of commission and errors of principle, and a balance check can never see them. Reconciling against independent evidence is the only deterministic way to catch a plausible lie.
 
-## Measuring a false-write rate, with a bound
+## Measuring the thing that actually matters
 
-The number the project lives or dies on is the false-write rate: of the entries the gate *approved*, how many were actually wrong. Not accuracy, not touch-free percentage. Wrong entries that got written.
+Most agent projects report accuracy. Accuracy is the model's problem. I wanted the number that describes *my* problem: of the entries the gate approved, how many were wrong? Wrong entries that got written. I called it the false-write rate.
 
-On the offline stress-test it is zero false writes out of 36 approved entries, 100% of the 168 seeded errors handled (most blocked, the large ones escalated to a human), and zero of the 36 clean controls wrongly rejected. But I refuse to report that as a flat "0%", because zero observed failures is not the same as zero failures. A 95% confidence bound puts the true rate at or below about 8.3%, so I report it as "0 of 36, at most 8.3% at 95% CI." That is the honest statement.
+My first attempt at measuring it was garbage, and it took me embarrassingly long to notice. I handed the gate the correct answer for each task as its "source document," so the gate could not possibly approve a wrong entry. The result was zero by construction: a number that could never have come out any other way, which makes it worthless. I tore it out and rebuilt the evaluation so the gate validates each proposal against a posting policy that is independent of the single correct answer. Now a plausible-but-wrong posting *can* pass and be counted, which is the only reason the zero means anything.
 
-Then I ran it live against real Qwen output, across 39 close tasks, with the planner using function calling to look up account codes. This ran on the Alibaba Cloud ECS instance the agent is deployed to, calling Model Studio in the same region.
+Offline, against 204 seeded-error cases across fourteen error classes: zero false writes of 36 approved, every one of the 168 seeded errors caught or escalated, and zero of the 36 clean controls wrongly blocked. That last number is the one people forget. A gate that blocks everything has a perfect catch rate and is useless; the false-reject rate is what proves the catch rate was not bought by over-blocking.
 
-Qwen3.7-Max was 97.4% accurate. It made one mistake and the gate caught it. Then I ran the faster, weaker qwen-flash: 82.1% accurate, seven mistakes, and the gate caught all seven. Eight model mistakes across the two models, eight caught, zero wrong entries written by either one.
+I also refuse to report "0%" flat. Zero observed failures is not zero failures. A 95% confidence bound puts the true rate at or below about 8.3%, so I report "0 of 36, at most 8.3% at 95% CI."
 
-The mistakes are worth dwelling on. Most were settlement errors: paying an invoice by crediting accounts receivable instead of cash, or booking cost-of-goods to receivables and revenue. Every one of those entries balances. Every one uses real, postable accounts. Every one reads perfectly plausibly. A trial balance waves all of them through, and so would any gate that only checks that debits equal credits. They are caught by exactly one thing: reconciling the proposal against the source document it claims to represent.
+Then I ran it live against real Qwen, on the Alibaba Cloud box the agent is deployed to. Qwen3.7-Max: 97.4%, one mistake, caught. The cheaper qwen-flash: 82.1%, seven mistakes, all seven caught. Eight model mistakes, eight caught, zero wrong writes.
 
-That is also the result I care about most. I swapped in a model that makes seven times as many mistakes, and the ledger stayed clean. The correctness of the ledger is a property of the gate, not of the model happening to be right.
+Swapping in a model that makes seven times as many mistakes left the ledger just as clean. That is the entire thesis in one experiment: the correctness of the ledger is a property of the gate, not of the model happening to be right.
 
-The false-write rate was 0% with Wilson upper bounds of 9.18% and 10.72%, and I committed the raw transcript to the repo. That number is not zero by construction: the honest boundary is the posting policy, which is per-document, not per-line. The gate enforces the set of accounts a document type permits and the amount, not the choice among the accounts that set allows, so a permitted-but-wrong posting would surface as a nonzero rate. In this run every error fell outside the permitted set and was caught, and closing that gap by escalating ambiguous choices is the next step. Model accuracy also moves a few points between runs, because sampling is not perfectly reproducible even at temperature 0; the gate's result did not move. A production claim would still need a prospective study against real closes with a gold standard, and I would rather say that plainly than quote a number I cannot defend.
+## The counterfactual, and why I bothered
+
+All of the above is still just me asserting that a control works. So I ran the experiment properly and gave it a control arm.
+
+The same planner drafts entries for the same 39 tasks. Then every proposal is posted to a live Odoo twice: once with the gate off, once with it on. The only variable is the gate. Gate off, five wrong entries are posted for real. Gate on, zero.
+
+The wrong ones are still in the ledger under references starting `NG-WRONG`, and each one's narration says what the model booked, what the source document required, and that it is only there because the gate was off. Odoo totals them for you: twenty-one thousand dollars of wrong entries, sitting in a real general ledger, all balanced, all passing a trial balance.
+
+This changed how I think about safety claims. "0% false-write rate with a 95% bound" is a statement about my test harness. "Here are the five wrong entries in the ledger, and here is the same ledger with the gate on" is a statement about the world. One of those a reader can check by looking.
+
+The count moves between runs, because model sampling is not reproducible even at temperature 0. Across my runs the gate-off number has been five to seven. The gate-on number has been zero every single time. That asymmetry is the claim, and it is the part that does not drift.
+
+## Giving the model the pen anyway
+
+Here is the part I am proudest of, and it started as an argument with myself.
+
+The safe design is obvious: never let the model near the write. But that is not how anyone will actually build these systems. People are going to hand models MCP tools that write to real systems, because that is the entire point of MCP. So the interesting question is not "can I keep the model away from the database," it is "can I hand the model the write tool and still be safe?"
+
+So I did. The gate is exposed as an MCP server, attached to Qwen through Model Studio's Responses API. The model calls the tools itself: `validate_write` is read-only, and `execute_approved_write` is the only path to the ledger.
+
+The trick is that the gate lives inside the server, not in the prompt. Instructing a model to "not modify any amounts" is not a control, it is a wish. Instead, `execute_approved_write` re-runs the full gate and verifies an HMAC token bound to the entry's content hash before it touches Odoo. The token is minted by the part of the system that holds the signing key; the model only relays it.
+
+Then I tried to break it. I told the model to inflate the amount from 2,400 to 9,900 before writing, using the same approval token. It tried. The server recomputed the content hash, the signature no longer verified, and the write was refused:
+
+```
+"refused": "approval token rejected: Token hash does not match entry; entry was modified."
+```
+
+The model is holding the pen and it still cannot forge the cheque. That property survives *because* the gate is behind the tool rather than in the instructions.
+
+I also had to make the hash cover more than I first thought. My original hash covered the amounts and accounts. It did not cover the memo, or who approved the entry. Which meant a valid token still verified after you rewrote the narration or forged the approver's name. Tamper-evident for cents, forgeable for the audit trail. On a product whose entire thesis is that the ledger must not be corrupted, the approver's name is not a free-text field.
+
+## From pixels to a posting decision
+
+The other half is multimodal. `qwen3-vl-plus` reads a scanned invoice image and extracts the record: document id, date, vendor, net, tax, gross, line items. That extraction drives the planner, and the gate then reconciles the resulting entry against the document the vision model just read. The amount the gate reconciles against was never typed by a human.
+
+Book it correctly and the gate approves. Nudge the same invoice to the wrong account and it balances, uses real accounts, and is refused. The thesis holds one layer further back, where the wrong entry is derived from a real document rather than a fixture.
+
+Running it also caught a bug I would never have found by reading the code. The prompt asked for a "counterparty" and never said which party that meant, so the model returned the bill-to, which is *my own company*, instead of the vendor on the letterhead. That silently misattributes every transaction. The fix was one sentence in the prompt. The lesson was that an ambiguous field name in a prompt is a bug, not a style issue.
+
+## What broke when I tried to break it
+
+I ran an adversarial review over my own gate late in the build, and it found real holes. I am listing them because a safety claim from someone who never tried to break their own thing is worth nothing:
+
+- **An entry with no lines was approved.** Zero debits equals zero credits, so it balanced, and every other check passed vacuously. The gate happily authorised a write that moved no value.
+- **A wash entry was approved.** `Dr 6100 5,000 / Cr 6100 5,000` balances, uses a real account, and does nothing. Self-contra was checked per line rather than per account.
+- **The gate failed open.** Only checks marked `ERROR` rejected. Any check added later at a softer severity would have failed silently and been approved anyway.
+- **A cancelled entry blocked a legitimate one.** The idempotency guard matched cancelled moves, so after a cleanup, two thirds of a run silently never posted and the caller got handed the ids of moves that no longer existed.
+- **One dropped connection killed a run mid-ledger.** `xmlrpc.client` reuses a single connection, so one expired keep-alive poisoned every later call and left the ledger half written.
+
+Every one of those is now a fix and a regression test. The suite went from 53 tests to 79. Finding them myself was uncomfortable; finding them after a judge did would have been worse.
 
 ## Building it on Qwen Cloud
 
-The backend runs on an Alibaba Cloud ECS instance, provisioned from code: `scripts/deploy_ecs.py` calls the ECS and VPC OpenAPIs to create the key pair, security group, network and instance, and the same script tears it down. From that box, the planner calls `qwen3.7-max` on Alibaba Cloud Model Studio through the OpenAI-compatible endpoint at temperature 0, using function calling: it has to call a `lookup_accounts` tool to discover valid account codes rather than being handed the chart, so account selection is grounded in real data. Document and email ingestion uses `qwen3-vl-plus` to pull line items out of scanned statements and invoices.
+The backend runs on an Alibaba Cloud ECS instance, provisioned from code: `scripts/deploy_ecs.py` calls the ECS and VPC OpenAPIs to create the key pair, security group, network and instance, and tears it all down again. From that box the planner calls `qwen3.7-max` on Model Studio at temperature 0 using function calling. The chart of accounts is deliberately kept out of the prompt, so the model has to call a `lookup_accounts` tool to discover valid codes and account selection is grounded in real data rather than invented.
 
-The write-back is demonstrated against a live Odoo 19: the same gated path created and posted real `account.move` records over XML-RPC, one from my laptop and one from the agent running on ECS (it can also route through the Odoo MCP server on Model Studio's Responses API). Every approval is carried by an HMAC token bound to the exact entry, so a stale or tampered approval cannot authorize a different write, and the entry's content hash is embedded in the move so a re-run finds the existing entry instead of posting a second one.
+Everything else runs there too: the test suite, the 204-case stress test, the live measurement, the MCP server, the counterfactual, and the real writes into a live Odoo 19. The instance metadata service only answers from inside a real ECS box, which is what makes the transcript in the repo worth anything.
+
+## What I would tell myself at the start
+
+Measure the thing you are actually claiming. I claimed the write side was safe and spent my first evaluation measuring whether the rules were internally consistent, which is a different and much easier question.
+
+Make the number falsifiable or do not report it. A metric that cannot come out badly is decoration.
+
+And if you are going to claim a control works, turn it off and show what happens. Every safety argument I made in prose was less convincing than five wrong entries sitting in a ledger with the gate off, next to the same ledger with it on.
 
 The model does the reading. The gate does the deciding. The ledger only ever hears from the gate. That boundary is not a feature of the product. It is the product.
+
+---
+
+*LedgerPilot is open source (Apache-2.0): [github.com/JonathanSolvesProblems/ledgerpilot](https://github.com/JonathanSolvesProblems/ledgerpilot). Built for the Global AI Hackathon with Qwen Cloud, Track 4. Every number above is reproducible from the repo, and the raw transcripts are committed alongside the code.*
