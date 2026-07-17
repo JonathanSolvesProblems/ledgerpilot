@@ -113,7 +113,7 @@ NARRATION: "And it writes. The same gated path posts a real journal entry to a l
 ON SCREEN:
 1. Open `scripts/deploy_ecs.py`: the `ALIBABA CLOUD DEPLOYMENT PROOF` header and the `run_instances` / `create_security_group` calls.
 2. Cut to `ledgerpilot/planner.py`: the same header and the function-calling loop against Model Studio.
-3. Finish in a browser at `http://47.84.116.56/`, URL bar visible, clicking one gate scenario.
+3. Finish in a browser at `https://ledgerpilot.jonathanandrei.com`, URL bar visible, clicking one gate scenario.
 
 NARRATION: "Two code files, two Alibaba Cloud services: deploy_ecs.py calls the ECS and VPC APIs that built this server, and planner.py calls Qwen on Model Studio. And the gate's UI is served straight off the instance."
 
@@ -124,8 +124,8 @@ NARRATION: "Two code files, two Alibaba Cloud services: deploy_ecs.py calls the 
 The demo opens on the semantic save: the "Wrong account (the save)" tab in the web UI (`python webui.py`, open `web/index.html`), or `SCENE 1` in `demo.py`, proposes a balanced entry posted to the wrong account, and the gate refuses it. Reconciliation runs on the exact path that writes to the ledger, so this is the true behavior on camera, not staged. The full suite passes.
 
 Caveats:
-- Script 1 is fully recordable offline (the web UI, `demo.py`, and the offline harness need no key). Better: open the web UI at the live ECS URL so the address bar doubles as deployment proof.
+- Script 1 is fully recordable offline (the web UI, `demo.py`, and the offline harness need no key). Better: open the web UI at https://ledgerpilot.jonathanandrei.com, served over TLS from the ECS box, so the address bar doubles as deployment proof.
 - Script 2 runs on the ECS instance. Beat 1 (the metadata service) is what proves the backend is *running on* Alibaba Cloud rather than merely calling it, which is the eligibility bar.
 - Host on YouTube or Vimeo (both appear on both versions of the rules), set PUBLIC. Keep the demo strictly under 3:00; judges are not required to watch past it.
 - Deployment proof: submit the code-file link (`scripts/deploy_ecs.py`, and `ledgerpilot/planner.py` if a second is allowed), an ECS console screenshot showing the instance Running, and this short separate recording.
-- Keep the ECS box running through the judging window so a judge can open `http://47.84.116.56/` and the live URL in the video still resolves. Release it (`python scripts/deploy_ecs.py --destroy`) only after judging closes.
+- Keep the ECS box running through the judging window so a judge can open `https://ledgerpilot.jonathanandrei.com` and the live URL in the video still resolves. Release it (`python scripts/deploy_ecs.py --destroy`) only after judging closes.

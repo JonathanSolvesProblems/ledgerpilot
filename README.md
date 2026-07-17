@@ -12,6 +12,8 @@ LedgerPilot is an autonomous month-end-close agent. Qwen proposes journal entrie
 
 Built for the **Global AI Hackathon Series with Qwen Cloud** (Track 4: **Autopilot Agent**). The backend runs on Alibaba Cloud ECS; Qwen drives the ERP write through an MCP server that puts the gate behind the tool.
 
+**[Try the gate live: https://ledgerpilot.jonathanandrei.com](https://ledgerpilot.jonathanandrei.com)** &nbsp;&middot;&nbsp; that page is served by the agent's own ECS instance, so the address bar is part of the deployment proof. Pick a scenario and watch the eight checks run against a real entry.
+
 ## Results
 
 **0. The counterfactual: what the gate keeps out of a real ledger** (`python scripts/counterfactual.py`). The same qwen-flash planner drafts entries for the same 39 close tasks. Then each proposal is posted to a live Odoo two ways: once with the gate off, once with it on. The only variable is the gate.
@@ -228,6 +230,7 @@ python -m eval.harness --live                    # measured false-write rate + W
 | Public repo + OSS license | this repo, [LICENSE](LICENSE) (Apache-2.0) |
 | Proof of Alibaba Cloud Deployment (code file) | [ledgerpilot/planner.py](ledgerpilot/planner.py) (Qwen on Model Studio, function calling) and [scripts/deploy_ecs.py](scripts/deploy_ecs.py) (the ECS + VPC OpenAPI calls that provisioned the server the backend runs on) |
 | Proof the backend ran on Alibaba Cloud (transcript) | [docs/ecs_proof.txt](docs/ecs_proof.txt), generated on ECS instance `i-t4n1i5p7bz4ypj122e6q` |
+| Live demo | [https://ledgerpilot.jonathanandrei.com](https://ledgerpilot.jonathanandrei.com), served over TLS from the ECS instance itself |
 | Screenshots of the running system | [docs/evidence/](docs/evidence/): the ECS console with the instance Running, the real posted `account.move` in Odoo, and the counterfactual's wrong entries sitting in the ledger |
 | Real ERP write (bonus) | [scripts/real_odoo_write.py](scripts/real_odoo_write.py); posted `MISC/2026/06/0001` from local ([docs/real_write_proof.txt](docs/real_write_proof.txt)) and `MISC/2026/06/0002` from ECS ([docs/ecs_proof.txt](docs/ecs_proof.txt)) to a live Odoo 19 |
 | MCP integration (Technical Depth) | [ledgerpilot/mcp_server.py](ledgerpilot/mcp_server.py) + [scripts/mcp_demo.py](scripts/mcp_demo.py): Qwen posts `move_id 3` through MCP and is refused when told to tamper |
