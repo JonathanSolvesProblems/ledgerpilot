@@ -4,7 +4,7 @@
 
 ## What it is
 
-LedgerPilot is an autonomous month-end-close agent that reads messy financial inputs, drafts journal entries, and writes them back to a real ERP system of record only through a deterministic, auditable validation gate, with a measured false-write rate.
+LedgerPilot is an autonomous month-end-close agent, built on **Qwen Cloud**, that reads messy financial inputs, drafts journal entries with Qwen, and writes them back to a real ERP system of record only through a deterministic, auditable validation gate, with a measured false-write rate.
 
 **Uniqueness claim:** LedgerPilot is the only entry that pairs a generative planner over unstructured financial inputs with a deterministic SOX-style validation gate, signed approval tokens, and governed write-back to a real ERP, and then publishes a measured false-write rate (with a confidence bound, on a domain-seeded error corpus) for the entries it actually posts, backed by a reconciliation check that catches the balanced-but-wrong-account and wrong-amount errors a trial-balance never will.
 
