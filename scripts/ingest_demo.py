@@ -30,10 +30,20 @@ from __future__ import annotations
 
 import argparse
 import base64
+import io
 import mimetypes
 import sys
 from datetime import date
 from pathlib import Path
+
+# The extracted line items carry the punctuation on the invoice (an em-dash in
+# "Office rent - Suite 400", say), which the Windows cp1252 console cannot encode,
+# so force UTF-8 on stdout to keep this recordable in any shell.
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (ValueError, io.UnsupportedOperation):
+        pass
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

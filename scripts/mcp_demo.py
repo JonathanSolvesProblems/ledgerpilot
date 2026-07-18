@@ -37,7 +37,19 @@ public IP of the ECS box:
 
 from __future__ import annotations
 
+import io
 import json
+import sys
+
+# The model's freeform reply can contain any character (it often answers in
+# Markdown with the odd emoji), and the Windows console defaults to cp1252, which
+# raises UnicodeEncodeError and aborts the run mid-demo. Force UTF-8 on stdout so
+# this records cleanly in any shell, not just a UTF-8 terminal.
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (ValueError, io.UnsupportedOperation):
+        pass
 import os
 import sys
 from datetime import date
