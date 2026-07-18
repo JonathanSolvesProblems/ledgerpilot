@@ -19,6 +19,9 @@ docs/NEXT_STEPS.md
 submission.md
 demo_script.md
 
+# Recording footage (local only, not published)
+broll/
+
 # OS / editor
 .DS_Store
 Thumbs.db
