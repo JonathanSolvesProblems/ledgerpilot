@@ -12,6 +12,8 @@ LedgerPilot is an autonomous month-end-close agent. Qwen proposes journal entrie
 
 Built for the **Global AI Hackathon Series with Qwen Cloud** (Track 4: **Autopilot Agent**). The backend runs on Alibaba Cloud ECS; Qwen drives the ERP write through an MCP server that puts the gate behind the tool.
 
+**[Watch the 3-minute demo: youtube.com/watch?v=TZ48qdSpMJk](https://www.youtube.com/watch?v=TZ48qdSpMJk)** &nbsp;&middot;&nbsp; the counterfactual on a real ledger, the gate refusing a misposted entry, the human sign-off, Qwen driving the write through MCP, and the backend live on ECS.
+
 **[Try the gate live: https://ledgerpilot.jonathanandrei.com](https://ledgerpilot.jonathanandrei.com)** &nbsp;&middot;&nbsp; that page is served by the agent's own ECS instance, so the address bar is part of the deployment proof. Pick a scenario and watch the eight checks run against a real entry.
 
 ## Results
@@ -236,6 +238,7 @@ python -m eval.harness --live                    # measured false-write rate + W
 | MCP integration (Technical Depth) | [ledgerpilot/mcp_server.py](ledgerpilot/mcp_server.py) + [scripts/mcp_demo.py](scripts/mcp_demo.py): Qwen posts `move_id 3` through MCP and is refused when told to tamper |
 | Counterfactual (Impact) | [scripts/counterfactual.py](scripts/counterfactual.py), [docs/counterfactual_proof.txt](docs/counterfactual_proof.txt): wrong entries posted gate-off vs 0 gate-on |
 | Architecture diagram | [docs/architecture.svg](docs/architecture.svg), [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Demo video | [youtube.com/watch?v=TZ48qdSpMJk](https://www.youtube.com/watch?v=TZ48qdSpMJk) (about 3 minutes) |
 | Demo video script | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) |
 | Text description | [docs/DEVPOST.md](docs/DEVPOST.md) |
 | Blog post (bonus) | [docs/BLOG.md](docs/BLOG.md) |

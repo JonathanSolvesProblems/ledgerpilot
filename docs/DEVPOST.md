@@ -2,6 +2,8 @@
 
 **Track 4: Autopilot Agent**
 
+**Watch the 3-minute demo:** https://www.youtube.com/watch?v=TZ48qdSpMJk
+
 ## What it is
 
 LedgerPilot is an autonomous month-end-close agent, built on **Qwen Cloud**, that reads messy financial inputs, drafts journal entries with Qwen, and writes them back to a real ERP system of record only through a deterministic, auditable validation gate, with a measured false-write rate.
