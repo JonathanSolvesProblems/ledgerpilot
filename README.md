@@ -16,6 +16,8 @@ Built for the **Global AI Hackathon Series with Qwen Cloud** (Track 4: **Autopil
 
 **[Try the gate live: https://ledgerpilot.jonathanandrei.com](https://ledgerpilot.jonathanandrei.com)** &nbsp;&middot;&nbsp; that page is served by the agent's own ECS instance, so the address bar is part of the deployment proof. Pick a scenario and watch the eight checks run against a real entry.
 
+**[Read the build story](https://jonathanandrei.com/blog/ledgerpilot-qwen-mcp-odoo-counterfactual-close-agent/)** &nbsp;&middot;&nbsp; the counterfactual, the deterministic gate, the MCP integration, and how I measured the false-write rate honestly.
+
 ## Results
 
 **0. The counterfactual: what the gate keeps out of a real ledger** (`python scripts/counterfactual.py`). The same qwen-flash planner drafts entries for the same 39 close tasks. Then each proposal is posted to a live Odoo two ways: once with the gate off, once with it on. The only variable is the gate.
@@ -241,7 +243,7 @@ python -m eval.harness --live                    # measured false-write rate + W
 | Demo video | [youtube.com/watch?v=TZ48qdSpMJk](https://www.youtube.com/watch?v=TZ48qdSpMJk) (about 3 minutes) |
 | Demo video script | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) |
 | Text description | [docs/DEVPOST.md](docs/DEVPOST.md) |
-| Blog post (bonus) | [docs/BLOG.md](docs/BLOG.md) |
+| Blog post (bonus) | [jonathanandrei.com/blog/ledgerpilot-...](https://jonathanandrei.com/blog/ledgerpilot-qwen-mcp-odoo-counterfactual-close-agent/) (source: [docs/BLOG.md](docs/BLOG.md)) |
 
 ## License
 
